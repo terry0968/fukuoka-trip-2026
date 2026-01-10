@@ -187,9 +187,8 @@
             </main>
         </div>
 
-        <!-- 2. 錢包管家 (記帳分頁) -->
+        <!-- 2. 錢包管家 -->
         <div v-if="activeTab === 'expense'" class="p-6 space-y-8">
-            <!-- 匯率工具 -->
             <div class="kuromi-card bg-[#2D2727] text-white p-8 shadow-2xl border-none">
                 <div class="flex justify-between items-start mb-4">
                     <div>
@@ -254,32 +253,27 @@
                         <i v-if="isSaving" data-lucide="loader-2" class="animate-spin"></i>
                         {{ isSaving ? '同步中...' : (isEditing ? '儲存修改 💜' : '紀錄支出並同步 💜') }}
                     </button>
-                    <button v-if="isEditing" @click="cancelEdit" class="px-6 bg-slate-100 text-slate-400 rounded-[30px] font-bold text-sm">取消</button>
+                    <button v-if="isEditing" @click="cancelEdit" class="px-6 bg-slate-100 text-slate-400 rounded-[30px] font-bold text-sm shadow-sm active:scale-90 transition">取消</button>
                 </div>
-
-                <!-- 錯誤偵測指引 -->
-                <p v-if="!isUrlConfigured" class="text-[9px] text-red-400 font-bold text-center mt-2 animate-pulse">
-                    ⚠️ 偵測到雲端網址尚未正確設定，請更換代碼第 237 行。
-                </p>
             </div>
             
             <!-- 支出明細 -->
             <div class="space-y-4 pb-10">
                 <div class="flex justify-between items-center px-4">
                     <h3 class="font-black text-slate-800 flex items-center gap-2">
-                        <i data-lucide="cloud" class="w-4 h-4 text-purple-400"></i> 雲端支出明細
+                        <i data-lucide="cloud" class="w-4 h-4 text-purple-400"></i> 支出明細 (雲端)
                     </h3>
                     <button @click="fetchExpensesFromSheet" class="text-[10px] text-purple-500 font-bold flex items-center gap-1 active:scale-90 transition">
-                        <i data-lucide="refresh-cw" :class="['w-3 h-3', expenseSyncing ? 'animate-spin' : '']"></i> 手動重整
+                        <i data-lucide="refresh-cw" :class="['w-3 h-3', expenseSyncing ? 'animate-spin' : '']"></i> 手動重新整理
                     </button>
                 </div>
 
-                <div v-if="expenseSyncing" class="py-10 text-center text-slate-300 italic">
-                    <p class="text-xs animate-pulse">正在從試算表讀取歷史資料...</p>
+                <div v-if="expenseSyncing && expenses.length === 0" class="py-10 text-center text-slate-300 italic">
+                    <p class="text-xs animate-pulse">正在從試算表讀取資料...</p>
                 </div>
 
                 <div v-else v-for="(ex, idx) in expenses" :key="ex.id" class="kuromi-card p-6 flex justify-between items-center shadow-md border-l-[12px] border-[#9D76C1]">
-                    <div class="flex-1">
+                    <div class="flex-1 mr-4">
                         <div class="flex items-center gap-2 mb-1">
                             <span class="text-[10px] font-bold text-white bg-slate-800 px-2 py-0.5 rounded">{{ex.date}}</span>
                             <span class="text-[10px] text-slate-400 font-bold uppercase">{{ex.payer}}</span>
@@ -289,9 +283,9 @@
                     <div class="text-right flex items-center gap-4">
                         <div>
                             <p class="text-xl font-bold text-slate-800">¥ {{ex.amount.toLocaleString()}}</p>
-                            <p class="text-xs font-bold text-[#FF91C1]">NT$ {{ex.amountTwd.toLocaleString()}}</p>
+                            <p class="text-[11px] font-bold text-[#FF91C1]">NT$ {{ex.amountTwd.toLocaleString()}}</p>
                         </div>
-                        <button @click="editItem(ex, idx)" class="p-3 bg-purple-50 text-purple-400 rounded-full active:scale-90 transition">
+                        <button @click="editItem(ex)" class="p-3 bg-purple-50 text-purple-400 rounded-full active:scale-90 transition shadow-inner">
                             <i data-lucide="pencil" class="w-4 h-4"></i>
                         </button>
                     </div>
@@ -299,7 +293,7 @@
 
                 <div v-if="!expenseSyncing && expenses.length === 0" class="py-12 text-center opacity-20">
                     <i data-lucide="receipt" class="w-16 h-16 mx-auto mb-2"></i>
-                    <p class="text-sm font-bold tracking-widest uppercase">No Records Found</p>
+                    <p class="text-sm font-bold tracking-widest uppercase">目前尚無紀錄</p>
                 </div>
             </div>
         </div>
@@ -347,7 +341,7 @@
         const { createApp, ref, computed, onMounted, nextTick } = Vue;
         createApp({
             setup() {
-                // --- ⚠️ 核心網址更新 (已修正漏字) ---
+                // --- ⚠️ 核心網址 ---
                 const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxUaoB_wXAYkZh3cW0S5HB_41Gw4wYI-mBkMjIYWOThVRgS-4e8bmWOTclAwLUkOUY/exec"; 
                 
                 const SHEET_ID = '19REJaflyB3ipjTvvQABcAMe95wjiBKwQNf7eH8J97N8';
@@ -363,7 +357,6 @@
                 const fxDate = ref('Loading...');
                 const isSaving = ref(false);
                 const isEditing = ref(false);
-                const editingIdx = ref(-1);
                 const showToast = ref(false);
                 const toastMsg = ref('');
                 const expenseSyncing = ref(false);
@@ -428,6 +421,7 @@
                     return rows;
                 };
 
+                // --- 核心功能：從試算表讀取支出列表並進行智慧合併 ---
                 const fetchExpensesFromSheet = async () => {
                     expenseSyncing.value = true;
                     const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${EXPENSE_GID}&t=${Date.now()}`;
@@ -436,11 +430,12 @@
                         const csvText = await response.text();
                         const rows = parseCSV(csvText);
                         
-                        const cloudExpenses = [];
+                        // 讀取到的雲端資料
+                        const cloudData = [];
                         rows.forEach((row, idx) => {
                             if (idx === 0 || row.length < 4) return;
                             if (!row[0] || !row[2]) return;
-                            cloudExpenses.unshift({
+                            cloudData.push({
                                 date: row[0],
                                 payer: row[1],
                                 item: row[2],
@@ -449,7 +444,27 @@
                                 id: row[5] || 'legacy-' + idx
                             });
                         });
-                        expenses.value = cloudExpenses;
+
+                        // 智慧合併：如果本地資料比雲端資料「新」，則保留本地資料
+                        // 避免 CSV 更新延遲造成資料消失
+                        const mergedMap = new Map();
+                        
+                        // 先放雲端資料
+                        cloudData.forEach(item => mergedMap.set(item.id, item));
+                        
+                        // 再放本地現有資料 (如果雲端 CSV 還沒更新，本地資料會覆蓋回去)
+                        expenses.value.forEach(item => {
+                            if (!mergedMap.has(item.id)) {
+                                mergedMap.set(item.id, item);
+                            }
+                        });
+
+                        // 轉回陣列並依照日期排序 (由新到舊)
+                        const sortedData = Array.from(mergedMap.values()).sort((a, b) => {
+                            return new Date(b.date) - new Date(a.date);
+                        });
+
+                        expenses.value = sortedData;
                     } catch (e) { console.error("Cloud Load Error:", e); }
                     finally { 
                         expenseSyncing.value = false;
@@ -458,16 +473,14 @@
                     }
                 };
 
-                const editItem = (ex, idx) => {
+                const editItem = (ex) => {
                     newExpense.value = { ...ex };
                     isEditing.value = true;
-                    editingIdx.value = idx;
                     document.getElementById('expense-form').scrollIntoView({ behavior: 'smooth' });
                 };
 
                 const cancelEdit = () => {
                     isEditing.value = false;
-                    editingIdx.value = -1;
                     newExpense.value = { 
                         id: null,
                         date: new Date().toISOString().split('T')[0], 
@@ -478,17 +491,25 @@
                 const addExpense = async () => {
                     if (!newExpense.value.item || !newExpense.value.amount) return;
                     isSaving.value = true;
-                    if (!isEditing.value) { newExpense.value.id = Date.now().toString(); }
+                    
+                    // 產生唯一 ID (如果是新增)
+                    if (!isEditing.value) { 
+                        newExpense.value.id = 'ID-' + Date.now().toString(); 
+                    }
 
                     const dataToSave = { ...newExpense.value };
 
-                    if (isEditing.value && editingIdx.value !== -1) {
-                        expenses.value[editingIdx.value] = { ...dataToSave };
+                    // 1. 立即更新本地畫面 (解決同步延遲感)
+                    const existingIdx = expenses.value.findIndex(e => e.id === dataToSave.id);
+                    if (existingIdx !== -1) {
+                        expenses.value[existingIdx] = dataToSave;
                     } else {
-                        expenses.value.unshift({ ...dataToSave });
+                        expenses.value.unshift(dataToSave);
                     }
 
                     try {
+                        // 2. 使用 POST 傳送到雲端
+                        // 使用 text/plain 避免 CORS 預檢攔截
                         await fetch(GAS_WEB_APP_URL, {
                             method: "POST",
                             mode: "no-cors",
@@ -496,17 +517,20 @@
                             body: JSON.stringify(dataToSave)
                         });
 
-                        toastMsg.value = isEditing.value ? "資料已成功修改！" : "支出已成功紀錄！";
+                        toastMsg.value = isEditing.value ? "資料已修改！" : "支出已存檔！";
                         showToast.value = true;
                         setTimeout(() => showToast.value = false, 3000);
 
-                        const savedPayer = newExpense.value.payer;
+                        const lastPayer = newExpense.value.payer;
                         cancelEdit();
-                        newExpense.value.payer = savedPayer;
+                        newExpense.value.payer = lastPayer;
+
+                        // 3. 延遲幾秒後背景重新載入
                         setTimeout(fetchExpensesFromSheet, 5000);
+
                     } catch (err) {
                         console.error("Sync Error:", err);
-                        toastMsg.value = "同步失敗，資料僅留存在手機中";
+                        toastMsg.value = "連線失敗，資料僅留存在本地";
                         showToast.value = true;
                     } finally {
                         isSaving.value = false;
@@ -530,7 +554,8 @@
                         ];
                         rows.forEach((row, idx) => {
                             if (idx === 0 || row.length < 3) return;
-                            const dateMatch = row[0].match(/(\d+)\/(\d+)/);
+                            const rawDateStr = row[0];
+                            const dateMatch = rawDateStr.match(/(\d+)\/(\d+)/);
                             if (dateMatch) {
                                 const m = parseInt(dateMatch[1]), d = parseInt(dateMatch[2]);
                                 const dayIndex = newItinerary.findIndex(day => { 
@@ -578,7 +603,6 @@
                     fetchExpensesFromSheet();
                     fetchWeather(); 
                     fetchExchangeRate(); 
-                    // 確保一開始就載入圖示
                     lucide.createIcons();
                 });
 
