@@ -75,7 +75,7 @@
             <div v-if="showToast" class="fixed top-20 left-1/2 -translate-x-1/2 z-[100] w-64">
                 <div class="bg-black/80 text-white p-4 rounded-[25px] flex items-center gap-3 backdrop-blur-md shadow-2xl border border-purple-400">
                     <i data-lucide="check-circle" class="text-green-400"></i>
-                    <p class="font-bold text-sm">開銷已同步至試算表！</p>
+                    <p class="font-bold text-sm">資料已儲存至試算表！</p>
                 </div>
             </div>
         </transition>
@@ -186,7 +186,7 @@
             </main>
         </div>
 
-        <!-- 2. 錢包管家 -->
+        <!-- 2. 錢包管家 (記帳分頁) -->
         <div v-if="activeTab === 'expense'" class="p-6 space-y-8">
             <div class="kuromi-card bg-[#2D2727] text-white p-8 shadow-2xl border-none">
                 <div class="flex justify-between items-start mb-4">
@@ -251,8 +251,20 @@
                 </button>
             </div>
             
-            <div class="space-y-4 pb-10">
-                <div v-for="(ex, idx) in expenses" :key="idx" class="kuromi-card p-6 flex justify-between items-center shadow-md border-l-[12px] border-[#9D76C1]">
+            <!-- 支出明細 -->
+            <div class="space-y-4">
+                <div class="flex justify-between items-center px-4">
+                    <h3 class="font-black text-slate-800 flex items-center gap-2">支出明細</h3>
+                    <button @click="fetchExpensesFromSheet" class="text-[10px] text-purple-500 font-bold flex items-center gap-1">
+                        <i data-lucide="refresh-cw" class="w-3 h-3"></i> 重新載入雲端紀錄
+                    </button>
+                </div>
+
+                <div v-if="expenseSyncing" class="py-10 text-center text-slate-300 italic">
+                    <p class="text-xs animate-pulse">正在讀取試算表資料...</p>
+                </div>
+
+                <div v-else v-for="(ex, idx) in expenses" :key="idx" class="kuromi-card p-6 flex justify-between items-center shadow-md border-l-[12px] border-[#9D76C1]">
                     <div>
                         <div class="flex items-center gap-2 mb-1">
                             <span class="text-[10px] font-bold text-white bg-slate-800 px-2 py-0.5 rounded">{{ex.date}}</span>
@@ -265,10 +277,15 @@
                         <p class="text-xs font-bold text-[#FF91C1]">NT$ {{ Math.round(ex.amount * exchangeRate).toLocaleString() }}</p>
                     </div>
                 </div>
+
+                <div v-if="!expenseSyncing && expenses.length === 0" class="py-10 text-center opacity-20">
+                    <i data-lucide="receipt" class="w-12 h-12 mx-auto mb-2"></i>
+                    <p class="text-sm font-bold">目前還沒有任何開銷紀錄</p>
+                </div>
             </div>
         </div>
 
-        <!-- 3. 百寶箱 (工具與清單) -->
+        <!-- 3. 百寶箱 -->
         <div v-if="activeTab === 'tools'" class="p-6 space-y-10">
             <section class="kuromi-card p-8 bg-white border-4 border-[#9D76C1] shadow-2xl relative">
                 <div class="absolute -right-4 -top-4 float-anim">
@@ -301,17 +318,6 @@
                         </div>
                     </div>
                 </div>
-
-                <div class="kuromi-card p-6 bg-slate-900 text-white border-none shadow-xl">
-                    <h4 class="font-bold text-[#FF91C1] mb-4 flex items-center gap-2">
-                        <i data-lucide="alert-circle" class="w-4 h-4"></i> 托運與手提注意事項
-                    </h4>
-                    <ul class="text-[11px] space-y-3 opacity-90 leading-relaxed">
-                        <li class="flex gap-2"><span class="text-[#9D76C1]">●</span><span><b>液體：</b>手提不得超過 100ml，需裝入透明夾鏈袋。</span></li>
-                        <li class="flex gap-2"><span class="text-[#9D76C1]">●</span><span><b>打火機：</b>一般打火機僅限 1 個可手提，其他嚴禁。</span></li>
-                        <li class="flex gap-2"><span class="text-[#9D76C1]">●</span><span><b>電池：</b>行動電源只能手提，<b>不可托運</b>。</span></li>
-                    </ul>
-                </div>
             </section>
         </div>
 
@@ -322,9 +328,10 @@
         const { createApp, ref, onMounted, nextTick } = Vue;
         createApp({
             setup() {
-                // --- ⚠️ 重要設定區：請更換為您的 GAS 網址 ---
-                // 您需要按照後面的步驟取得此網址
+                // --- ⚠️ 重要設定區 ---
                 const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbyC8z8_mJ8YvL_nO4XWn8X_P8v_L8_L8_L8_L8/exec"; 
+                const SHEET_ID = '19REJaflyB3ipjTvvQABcAMe95wjiBKwQNf7eH8J97N8';
+                const EXPENSE_GID = '146729228'; // 新增支出的分頁 GID
 
                 const activeTab = ref('itinerary');
                 const selectedDay = ref(0);
@@ -335,6 +342,7 @@
                 const fxDate = ref('Loading...');
                 const isSaving = ref(false);
                 const showToast = ref(false);
+                const expenseSyncing = ref(false);
                 
                 const newExpense = ref({ 
                     date: new Date().toISOString().split('T')[0], 
@@ -355,12 +363,12 @@
                 ]);
 
                 const packing = ref([
-                    { category: '一、必備證件與財務', items: [{text: '護照 (6個月以上效期)', done: false}, {text: '機票/訂位紀錄', done: false}, {text: '信用卡/日幣現金', done: false}, {text: '旅遊保險文件', done: false}] },
-                    { category: '二、衣物配件', items: [{text: '日常衣物/內衣褲/睡衣/襪子', done: false}, {text: '舒適鞋子/拖鞋', done: false}, {text: '太陽眼鏡/帽子/圍巾', done: false}] },
-                    { category: '三、盥洗與保養品', items: [{text: '牙刷牙膏/梳子/洗面乳', done: false}, {text: '分裝保養品/防曬乳', done: false}, {text: '衛生紙/生理用品', done: false}] },
-                    { category: '四、3C產品', items: [{text: '手機/充電線/充電器', done: false}, {text: '行動電源 (必手提)', done: false}, {text: 'WiFi機/網卡/轉接頭', done: false}] },
-                    { category: '五、藥品保健', items: [{text: '感冒/止痛/腸胃/過敏藥', done: false}, {text: '個人處方藥/防蚊液', done: false}, {text: 'Ruby 常備藥/OK繃', done: false}] },
-                    { category: '六、雜物與 Ruby 專區', items: [{text: '奶粉/副食品/餐具', done: false}, {text: '足量尿布/濕紙巾', done: false}, {text: '水瓶/雨傘/頸枕', done: false}] }
+                    { category: '一、必備證件與財務', items: [{text: '護照 (6個月以上效期)', done: false}, {text: '機票/訂位紀錄', done: false}, {text: '信用卡/日幣現金', done: false}] },
+                    { category: '二、衣物配件', items: [{text: '睡衣/內衣褲/襪子', done: false}, {text: '好走的鞋/拖鞋', done: false}] },
+                    { category: '三、盥洗與保養品', items: [{text: '牙刷牙膏/洗面乳', done: false}, {text: '乳液/防曬/生理用品', done: false}] },
+                    { category: '四、3C產品', items: [{text: '手機/充電線/充電器', done: false}, {text: '行動電源 (手提)', done: false}, {text: 'WiFi機/轉接頭', done: false}] },
+                    { category: '五、藥品保健', items: [{text: '腸胃/感冒/止痛藥', done: false}, {text: 'Ruby 常備藥/OK繃', done: false}] },
+                    { category: '六、Ruby 專區', items: [{text: '奶粉/餐具/尿布', done: false}, {text: '濕紙巾/推車/頸枕', done: false}] }
                 ]);
 
                 const fetchExchangeRate = async () => {
@@ -383,51 +391,74 @@
                     }
                 };
 
-                // --- 雲端儲存主函式 ---
-                const addExpense = async () => {
-                    if (!newExpense.value.item || !newExpense.value.amount) return;
-                    
-                    isSaving.value = ref(true);
-                    const dataToSave = { ...newExpense.value };
-
+                // --- 新功能：從試算表讀取支出紀錄 ---
+                const fetchExpensesFromSheet = async () => {
+                    expenseSyncing.value = true;
+                    const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${EXPENSE_GID}&t=${Date.now()}`;
                     try {
-                        // 1. 同步到 Google 試算表 (使用 Google Apps Script)
-                        // 注意：這裡使用 POST 到您的 GAS Web App
-                        await fetch(GAS_WEB_APP_URL, {
-                            method: "POST",
-                            mode: "no-cors", // GAS POST 限制
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify(dataToSave)
+                        const response = await fetch(url);
+                        const csvText = await response.text();
+                        const rows = csvText.split('\n').map(row => row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(c => c.replace(/"/g, '').trim()));
+                        
+                        const cloudExpenses = [];
+                        rows.forEach((row, idx) => {
+                            if (idx === 0 || row.length < 4) return; // 跳過標題列
+                            if (!row[0] || !row[2]) return; // 確保有日期和品項
+                            cloudExpenses.unshift({
+                                date: row[0],
+                                payer: row[1],
+                                item: row[2],
+                                amount: parseInt(row[3]) || 0,
+                                amountTwd: parseInt(row[4]) || 0
+                            });
                         });
-
-                        // 2. 更新本地列表
-                        expenses.value.unshift(dataToSave);
-                        
-                        // 3. 顯示成功提示
-                        showToast.value = true;
-                        setTimeout(() => showToast.value = false, 3000);
-
-                        // 4. 重置表單
-                        newExpense.value.item = ''; 
-                        newExpense.value.amount = null; 
-                        newExpense.value.amountTwd = null;
-                        
-                    } catch (err) {
-                        console.error("Cloud Sync Error:", err);
-                        // 即使同步失敗也讓資料留在本地
-                        expenses.value.unshift(dataToSave);
-                    } finally {
-                        isSaving.value = false;
+                        expenses.value = cloudExpenses;
+                    } catch (e) { console.error("Load Expenses Failed:", e); }
+                    finally { 
+                        expenseSyncing.value = false;
                         await nextTick();
                         lucide.createIcons();
                     }
                 };
 
+                const addExpense = async () => {
+                    if (!newExpense.value.item || !newExpense.value.amount) return;
+                    isSaving.value = true;
+                    const dataToSave = { ...newExpense.value };
+
+                    try {
+                        // 同步到 GAS
+                        await fetch(GAS_WEB_APP_URL, {
+                            method: "POST",
+                            mode: "no-cors",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify(dataToSave)
+                        });
+
+                        // 顯示成功提示
+                        showToast.value = true;
+                        setTimeout(() => showToast.value = false, 3000);
+
+                        // 重置表單
+                        newExpense.value.item = ''; 
+                        newExpense.value.amount = null; 
+                        newExpense.value.amountTwd = null;
+
+                        // 延遲一下後重新從試算表抓取列表 (Google Sheet 同步約需 1-2 秒)
+                        setTimeout(fetchExpensesFromSheet, 1500);
+                        
+                    } catch (err) {
+                        console.error("Cloud Sync Error:", err);
+                        expenses.value.unshift(dataToSave); // 失敗至少存在本地
+                    } finally {
+                        isSaving.value = false;
+                    }
+                };
+
                 const fetchItineraryFromSheet = async () => {
                     syncStatus.value = 'loading';
-                    const sheetId = '19REJaflyB3ipjTvvQABcAMe95wjiBKwQNf7eH8J97N8';
                     const gid = '1691304811';
-                    const url = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}&t=${Date.now()}`;
+                    const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${gid}&t=${Date.now()}`;
                     try {
                         const response = await fetch(url);
                         const csvText = await response.text();
@@ -473,9 +504,18 @@
                     window.open(url, '_blank');
                 };
 
-                onMounted(() => { fetchItineraryFromSheet(); fetchWeather(); fetchExchangeRate(); });
+                const handleWeatherClick = () => {
+                    openExternal('https://tenki.jp/forecast/9/43/8210/40130/');
+                };
 
-                return { activeTab, selectedDay, fxInput, members, expenses, newExpense, itinerary, packing, weather, syncStatus, exchangeRate, fxDate, addExpense, openExternal, fetchItineraryFromSheet, convertCurrency, fetchExchangeRate, isSaving, showToast };
+                onMounted(() => { 
+                    fetchItineraryFromSheet(); 
+                    fetchExpensesFromSheet(); // 啟動時加載雲端支出
+                    fetchWeather(); 
+                    fetchExchangeRate(); 
+                });
+
+                return { activeTab, selectedDay, fxInput, members, expenses, newExpense, itinerary, packing, weather, syncStatus, exchangeRate, fxDate, addExpense, openExternal, fetchItineraryFromSheet, convertCurrency, fetchExchangeRate, isSaving, showToast, expenseSyncing, fetchExpensesFromSheet, handleWeatherClick };
             }
         }).mount('#app');
     </script>
