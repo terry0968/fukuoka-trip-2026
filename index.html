@@ -149,7 +149,7 @@
                         class="w-full bg-[#9D76C1]/10 text-[#9D76C1] py-4 rounded-[25px] flex items-center justify-center gap-3 border-2 border-dashed border-[#9D76C1] active:scale-95 transition-all">
                     <i data-lucide="refresh-cw" :class="['w-5 h-5', syncStatus === 'loading' ? 'animate-spin' : '']"></i>
                     <span class="font-black text-sm uppercase tracking-widest">
-                        {{ syncStatus === 'loading' ? '正在同步行程...' : '同步 Google 試算表' }}
+                        {{ syncStatus === 'loading' ? '正在讀取試算表...' : '同步 Google 行程' }}
                     </span>
                 </button>
             </div>
@@ -184,12 +184,10 @@
                 <div v-if="itinerary[selectedDay].plans.length === 0" class="text-center py-10 opacity-30">
                     <i data-lucide="calendar-dashed" class="w-12 h-12 mx-auto mb-2 text-purple-300"></i>
                     <p class="text-sm font-bold">這天暫時沒有行程唷</p>
-                    <p class="text-[10px] mt-1 italic">請確定試算表日期格式為 5/30 樣式</p>
                 </div>
 
-                <!-- 偵錯資訊 -->
                 <div v-if="syncCount > 0" class="mt-10 text-center opacity-30 text-[9px] font-bold uppercase tracking-widest">
-                    <p>Debug: 已從雲端讀取 {{ syncCount }} 筆行程</p>
+                    <p>Debug: 已解析 {{ syncCount }} 項行程</p>
                 </div>
             </main>
         </div>
@@ -281,7 +279,7 @@
                     </button>
                 </div>
 
-                <div v-if="expenseSyncing" class="py-10 text-center text-slate-300 italic">
+                <div v-if="expenseSyncing && expenses.length === 0" class="py-10 text-center text-slate-300 italic">
                     <p class="text-xs animate-pulse">正在從試算表讀取歷史資料...</p>
                 </div>
 
@@ -379,16 +377,11 @@
                 const toastMsg = ref('');
                 const expenseSyncing = ref(false);
                 const syncStatus = ref('idle');
-                const syncCount = ref(0); // 偵錯用筆數
+                const syncCount = ref(0);
                 
                 const newExpense = ref({ 
-                    id: null,
-                    date: new Date().toISOString().split('T')[0], 
-                    item: '', 
-                    amount: null, 
-                    amountTwd: null, 
-                    payer: 'KCY',
-                    remark: ''
+                    id: null, date: new Date().toISOString().split('T')[0], 
+                    item: '', amount: null, amountTwd: null, payer: 'KCY', remark: ''
                 });
 
                 const isUrlConfigured = computed(() => {
@@ -448,38 +441,22 @@
                         const response = await fetch(url);
                         const csvText = await response.text();
                         const rows = parseCSV(csvText);
-                        
                         const cloudData = [];
                         rows.forEach((row, idx) => {
                             if (idx === 0 || row.length < 4) return;
                             if (!row[0] || !row[2]) return;
                             cloudData.push({
-                                date: row[0],
-                                payer: row[1],
-                                item: row[2],
-                                amount: parseInt(row[3]) || 0,
-                                amountTwd: parseInt(row[4]) || 0,
-                                id: row[5] || 'legacy-' + idx,
-                                remark: row[6] || ''
+                                date: row[0], payer: row[1], item: row[2],
+                                amount: parseInt(row[3]) || 0, amountTwd: parseInt(row[4]) || 0,
+                                id: row[5] || 'legacy-' + idx, remark: row[6] || ''
                             });
                         });
-
                         const mergedMap = new Map();
                         cloudData.forEach(item => mergedMap.set(item.id, item));
-                        expenses.value.forEach(item => {
-                            if (!mergedMap.has(item.id)) mergedMap.set(item.id, item);
-                        });
-
-                        const sortedData = Array.from(mergedMap.values()).sort((a, b) => {
-                            return new Date(b.date) - new Date(a.date);
-                        });
-                        expenses.value = sortedData;
+                        expenses.value.forEach(item => { if (!mergedMap.has(item.id)) mergedMap.set(item.id, item); });
+                        expenses.value = Array.from(mergedMap.values()).sort((a, b) => new Date(b.date) - new Date(a.date));
                     } catch (e) { console.error("Cloud Load Error:", e); }
-                    finally { 
-                        expenseSyncing.value = false;
-                        await nextTick();
-                        lucide.createIcons();
-                    }
+                    finally { expenseSyncing.value = false; await nextTick(); lucide.createIcons(); }
                 };
 
                 const editItem = (ex) => {
@@ -491,11 +468,7 @@
 
                 const cancelEdit = () => {
                     isEditing.value = false;
-                    newExpense.value = { 
-                        id: null,
-                        date: new Date().toISOString().split('T')[0], 
-                        item: '', amount: null, amountTwd: null, payer: 'KCY', remark: ''
-                    };
+                    newExpense.value = { id: null, date: new Date().toISOString().split('T')[0], item: '', amount: null, amountTwd: null, payer: 'KCY', remark: '' };
                     nextTick(() => lucide.createIcons());
                 };
 
@@ -503,43 +476,25 @@
                     if (!newExpense.value.item || !newExpense.value.amount) return;
                     isSaving.value = true;
                     if (!isEditing.value) { newExpense.value.id = 'ID-' + Date.now().toString(); }
-
                     const dataToSave = { ...newExpense.value };
                     const existingIdx = expenses.value.findIndex(e => e.id === dataToSave.id);
-                    if (existingIdx !== -1) {
-                        expenses.value[existingIdx] = dataToSave;
-                    } else {
-                        expenses.value.unshift(dataToSave);
-                    }
-
+                    if (existingIdx !== -1) { expenses.value[existingIdx] = dataToSave; } 
+                    else { expenses.value.unshift(dataToSave); }
                     try {
                         await fetch(GAS_WEB_APP_URL, {
-                            method: "POST",
-                            mode: "no-cors",
+                            method: "POST", mode: "no-cors",
                             headers: { "Content-Type": "text/plain" },
                             body: JSON.stringify(dataToSave)
                         });
-
                         toastMsg.value = isEditing.value ? "資料已修改！" : "支出已存檔！";
-                        showToast.value = true;
-                        setTimeout(() => showToast.value = false, 3000);
-
-                        const lastPayer = newExpense.value.payer;
-                        cancelEdit();
-                        newExpense.value.payer = lastPayer;
+                        showToast.value = true; setTimeout(() => showToast.value = false, 3000);
+                        const lp = newExpense.value.payer; cancelEdit(); newExpense.value.payer = lp;
                         setTimeout(fetchExpensesFromSheet, 5000);
-                    } catch (err) {
-                        console.error("Sync Error:", err);
-                        toastMsg.value = "連線失敗，資料僅留存在本地";
-                        showToast.value = true;
-                    } finally {
-                        isSaving.value = false;
-                        await nextTick();
-                        lucide.createIcons();
-                    }
+                    } catch (err) { toastMsg.value = "連線失敗，資料僅留存在本地"; showToast.value = true; } 
+                    finally { isSaving.value = false; await nextTick(); lucide.createIcons(); }
                 };
 
-                // --- 核心更新：極限彈性日期解析 ---
+                // --- 核心更新：縱向時間、橫向日期解析 ---
                 const fetchItineraryFromSheet = async () => {
                     syncStatus.value = 'loading';
                     const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${ITINERARY_GID}&t=${Date.now()}`;
@@ -555,45 +510,56 @@
                             { date: '6/05', dayName: 'FRI', plans: [] }, { date: '6/06', dayName: 'SAT', plans: [] }
                         ];
 
+                        if (rows.length < 1) return;
+                        
+                        const headers = rows[0]; // 第一列是日期 (5/30, 5/31...)
                         let count = 0;
-                        rows.forEach((row, idx) => {
-                            if (idx === 0 || row.length < 3) return;
-                            const cellA = row[0]; // 日期欄位
-                            const cellB = row[1]; // 時間
-                            const cellC = row[2]; // 標題
+
+                        // 遍歷所有資料列 (每一行是一個時間點)
+                        for (let i = 1; i < rows.length; i++) {
+                            const row = rows[i];
+                            const timeStr = row[0]; // A 欄是時間
                             
-                            if (!cellA || !cellC) return;
+                            // 遍歷 B 欄以後的每一欄 (每一天)
+                            for (let j = 1; j < row.length; j++) {
+                                const planTitle = row[j];
+                                if (!planTitle || planTitle.trim() === "") continue;
 
-                            // 使用正則表達式尋找月份與日期 (例如 5/30 或 05-30)
-                            const matches = cellA.match(/(\d{1,2})[\/\-月\.](\d{1,2})/);
-                            if (matches) {
-                                const m = parseInt(matches[1]);
-                                const d = parseInt(matches[2]);
+                                const headerText = headers[j]; // 該欄位對應的日期
+                                if (!headerText) continue;
 
-                                // 與本地結構比對
-                                const dayIndex = newItinerary.findIndex(day => {
-                                    const parts = day.date.split('/');
-                                    return parseInt(parts[0]) === m && parseInt(parts[1]) === d;
-                                });
+                                // 解析日期 (例如從 2026/05/30 或 5/30 抓出 5 和 30)
+                                const dateMatch = headerText.match(/(\d{1,2})[\/\-月\.](\d{1,2})/);
+                                if (dateMatch) {
+                                    const m = parseInt(dateMatch[1]);
+                                    const d = parseInt(dateMatch[2]);
 
-                                if (dayIndex !== -1) {
-                                    newItinerary[dayIndex].plans.push({
-                                        time: cellB || '--:--',
-                                        title: cellC
+                                    const dayIndex = newItinerary.findIndex(day => {
+                                        const p = day.date.split('/');
+                                        return parseInt(p[0]) === m && parseInt(p[1]) === d;
                                     });
-                                    count++;
+
+                                    if (dayIndex !== -1) {
+                                        newItinerary[dayIndex].plans.push({
+                                            time: timeStr || '--:--',
+                                            title: planTitle
+                                        });
+                                        count++;
+                                    }
                                 }
                             }
+                        }
+
+                        // 針對每一天的行程，依照時間進行排序 (確保顯示順序正確)
+                        newItinerary.forEach(day => {
+                            day.plans.sort((a, b) => a.time.localeCompare(b.time));
                         });
                         
                         itinerary.value = newItinerary;
                         syncCount.value = count;
                         syncStatus.value = 'success';
                         setTimeout(() => syncStatus.value = 'idle', 3000);
-                    } catch (e) { 
-                        console.error("Itinerary Sync Error:", e);
-                        syncStatus.value = 'error'; 
-                    }
+                    } catch (e) { syncStatus.value = 'error'; }
                     await nextTick();
                     lucide.createIcons();
                 };
@@ -624,21 +590,15 @@
                 const handleWeatherClick = () => openExternal('https://tenki.jp/forecast/9/43/8210/40130/');
 
                 onMounted(() => { 
-                    fetchItineraryFromSheet(); 
-                    fetchExpensesFromSheet();
-                    fetchWeather(); 
-                    fetchExchangeRate(); 
-                    lucide.createIcons();
+                    fetchItineraryFromSheet(); fetchExpensesFromSheet(); fetchWeather(); fetchExchangeRate(); lucide.createIcons();
                 });
 
                 return { 
-                    activeTab, selectedDay, fxInput, members, expenses, 
-                    newExpense, itinerary, packing, weather, syncStatus, 
-                    exchangeRate, fxDate, addExpense, openExternal, 
-                    fetchItineraryFromSheet, convertCurrency, fetchExchangeRate, 
-                    isSaving, isEditing, showToast, toastMsg, 
-                    expenseSyncing, fetchExpensesFromSheet, handleWeatherClick, 
-                    editItem, cancelEdit, isUrlConfigured, syncCount
+                    activeTab, selectedDay, fxInput, members, expenses, newExpense, itinerary, packing, weather, 
+                    syncStatus, exchangeRate, fxDate, addExpense, openExternal, fetchItineraryFromSheet, 
+                    convertCurrency, fetchExchangeRate, isSaving, isEditing, showToast, toastMsg, 
+                    expenseSyncing, fetchExpensesFromSheet, handleWeatherClick, editItem, cancelEdit, 
+                    isUrlConfigured, syncCount 
                 };
             }
         }).mount('#app');
