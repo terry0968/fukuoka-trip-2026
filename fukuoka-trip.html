@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>福岡旅遊導航 App</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;700&display=swap');
+        body { font-family: 'Noto Sans JP', sans-serif; background-color: #F7F9F9; overflow: hidden; }
+        [v-cloak] { display: none; }
+        .teal-theme { background-color: #5FA8A3; }
+        .teal-text { color: #5FA8A3; }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .day-card-active { background-color: #5FA8A3; color: white; transform: scale(1.05); }
+        #map { height: 300px; border-radius: 24px; z-index: 10; }
+        .tab-content { height: calc(100vh - 180px); overflow-y: auto; padding-bottom: 100px; }
+    </style>
+</head>
+<body>
+    <div id="app" v-cloak class="max-w-md mx-auto min-h-screen relative shadow-2xl bg-[#F7F9F9]">
+        
+        <header class="p-6 pt-10 flex justify-between items-center bg-white/50 backdrop-blur-md sticky top-0 z-50">
+            <div>
+                <h1 class="text-2xl font-bold teal-text">福岡 2026</h1>
+                <p class="text-[10px] text-slate-400 uppercase tracking-widest">Family Trip Organizer</p>
+            </div>
+            <div class="text-right">
+                <span class="text-xs bg-teal-50 text-teal-600 px-3 py-1 rounded-full font-bold">
+                    {{ weather.temp }}°C 
+                </span>
+            </div>
+        </header>
+
+        <div class="tab-content hide-scrollbar">
+            
+            <section v-show="activeTab === 'itinerary'" class="p-6 space-y-4">
+                <div class="flex overflow-x-auto space-x-4 hide-scrollbar py-2">
+                    <div v-for="(day, index) in itinerary" :key="index" 
+                         @click="selectedDay = index"
+                         :class="['flex-shrink-0 w-14 h-16 rounded-2xl flex flex-col items-center justify-center transition-all shadow-sm border', 
+                                  selectedDay === index ? 'day-card-active' : 'bg-white border-slate-100 text-slate-400']">
+                        <span class="text-[9px] font-bold">{{ day.dayName }}</span>
+                        <span class="text-sm font-bold">{{ day.date.split('/')[1] }}</span>
+                    </div>
+                </div>
+
+                <div class="mt-6 space-y-4">
+                    <div v-for="(item, pIdx) in itinerary[selectedDay].plans" :key="pIdx" 
+                         class="bg-white rounded-3xl p-5 shadow-sm border border-slate-50 flex items-center gap-4">
+                        <div class="text-xs font-bold text-teal-600 w-10">{{ item.time }}</div>
+                        <div class="flex-1">
+                            <input v-model="item.title" class="w-full font-bold text-slate-700 bg-transparent focus:outline-none">
+                            <p class="text-[10px] text-slate-400">景點地點</p>
+                        </div>
+                        <button @click="openMap(item.title)" class="p-2 bg-slate-50 rounded-full text-slate-400 hover:teal-text">
+                            <i data-lucide="navigation-2" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                    <button @click="addItem" class="w-full py-4 border-2 border-dashed border-slate-200 rounded-3xl text-slate-400 text-sm font-bold">+ 新增行程點</button>
+                </div>
+            </section>
+
+            <section v-show="activeTab === 'map'" class="p-6 space-y-4">
+                <div class="bg-white p-4 rounded-[32px] shadow-sm">
+                    <div id="map" class="mb-4"></div>
+                    <div class="flex justify-between items-center">
+                        <p class="text-xs font-bold text-slate-500">當日行程點分佈</p>
+                        <button @click="locateMe" class="text-xs teal-text font-bold flex items-center gap-1">
+                            <i data-lucide="crosshair" class="w-3 h-3"></i> 顯示我目前位置
+                        </button>
+                    </div>
+                </div>
+                <div class="bg-teal-50 p-4 rounded-2xl">
+                    <p class="text-xs text-teal-700 leading-relaxed">
+                        <i data-lucide="info" class="inline w-3 h-3 mb-1"></i> 提示：點擊上方標記可查看行程點名稱。地圖會根據今日行程自動縮放範圍。
+                    </p>
+                </div>
+            </section>
+
+            <section v-show="activeTab === 'split'" class="p-6 space-y-6">
+                <div class="bg-indigo-900 text-white p-6 rounded-[32px] shadow-xl">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-sm font-bold opacity-80 uppercase tracking-tighter">匯率換算機</h3>
+                        <span class="text-[10px] bg-white/20 px-2 py-1 rounded">1 JPY ≈ {{ exchangeRate }} TWD</span>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <div class="flex-1">
+                            <label class="text-[10px] opacity-60">輸入日幣 (¥)</label>
+                            <input v-model.number="fxInput" type="number" class="w-full bg-transparent text-2xl font-bold focus:outline-none" placeholder="0">
+                        </div>
+                        <i data-lucide="arrow-right-left" class="opacity-40"></i>
+                        <div class="flex-1">
+                            <label class="text-[10px] opacity-60">約台幣 ($)</label>
+                            <div class="text-2xl font-bold">{{ Math.round(fxInput * exchangeRate) }}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm space-y-4">
+                    <input v-model="newExpense.item" placeholder="品項名稱" class="w-full text-lg font-bold border-b py-2 focus:outline-none focus:border-teal-500">
+                    <div class="flex gap-4">
+                        <input v-model.number="newExpense.amount" type="number" placeholder="金額 (日幣)" class="flex-1 border-b py-2 focus:outline-none">
+                        <select v-model="newExpense.payer" class="bg-slate-50 rounded-xl px-2 text-sm font-bold">
+                            <option v-for="m in members" :key="m">{{ m }}</option>
+                        </select>
+                    </div>
+                    <button @click="addExpense" class="w-full teal-theme text-white py-4 rounded-2xl font-bold active:scale-95 transition">紀錄支出</button>
+                </div>
+
+                <div class="space-y-3">
+                    <div v-for="(balance, person) in balances" :key="person" class="flex justify-between items-center p-4 bg-white rounded-2xl border border-slate-50 shadow-sm">
+                        <span class="font-bold text-slate-600">{{ person }}</span>
+                        <div class="text-right">
+                            <p :class="balance >= 0 ? 'text-teal-600' : 'text-orange-500'" class="font-bold text-lg">
+                                {{ balance >= 0 ? '+' : '' }}{{ Math.round(balance).toLocaleString() }}
+                            </p>
+                            <p class="text-[9px] text-slate-300">台幣約 ${{ Math.round(balance * exchangeRate).toLocaleString() }}</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <nav class="fixed bottom-8 left-6 right-6 h-20 bg-white rounded-[32px] shadow-2xl flex items-center justify-around px-4 z-[100]">
+            <button @click="activeTab = 'itinerary'" :class="activeTab === 'itinerary' ? 'teal-text scale-110' : 'text-slate-300'" class="flex flex-col items-center transition-all">
+                <i data-lucide="calendar"></i>
+                <span class="text-[9px] font-bold mt-1">行程</span>
+            </button>
+            <button @click="changeTab('map')" :class="activeTab === 'map' ? 'teal-text scale-110' : 'text-slate-300'" class="flex flex-col items-center transition-all">
+                <i data-lucide="map"></i>
+                <span class="text-[9px] font-bold mt-1">地圖</span>
+            </button>
+            <button @click="activeTab = 'split'" :class="activeTab === 'split' ? 'teal-text scale-110' : 'text-slate-300'" class="flex flex-col items-center transition-all">
+                <i data-lucide="wallet"></i>
+                <span class="text-[9px] font-bold mt-1">分帳</span>
+            </button>
+        </nav>
+    </div>
+
+    <script>
+        const { createApp, ref, computed, onMounted, nextTick, watch } = Vue;
+
+        createApp({
+            setup() {
+                const activeTab = ref('itinerary');
+                const selectedDay = ref(0);
+                const weather = ref({ temp: '--' });
+                const exchangeRate = ref(0.21); // 2026 預設匯率 (可自行調整)
+                const fxInput = ref(null);
+                const map = ref(null);
+                const markers = ref([]);
+                const members = ['大人A', '大人B', '長輩A', '長輩B'];
+                const newExpense = ref({ item: '', amount: null, payer: '大人A' });
+                const expenses = ref([]);
+
+                const itinerary = ref([
+                    { date: '5/30', dayName: 'SAT', plans: [{ time: '12:00', title: '福岡機場', lat: 33.585, lng: 130.444 }, { time: '16:00', title: '博多車站', lat: 33.589, lng: 130.420 }] },
+                    { date: '5/31', dayName: 'SUN', plans: [{ time: '09:00', title: '太宰府天滿宮', lat: 33.521, lng: 130.534 }, { time: '14:00', title: '柳川', lat: 33.264, lng: 130.407 }] },
+                    { date: '6/01', dayName: 'MON', plans: [{ time: '10:00', title: '海之中道海濱公園', lat: 33.659, lng: 130.355 }] }
+                ]);
+
+                // 地圖初始化與更新
+                const initMap = () => {
+                    if (!map.value) {
+                        map.value = L.map('map').setView([33.59, 130.40], 12);
+                        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map.value);
+                    }
+                    updateMapMarkers();
+                };
+
+                const updateMapMarkers = () => {
+                    if (!map.value) return;
+                    markers.value.forEach(m => map.value.removeLayer(m));
+                    markers.value = [];
+                    
+                    const currentPlans = itinerary.value[selectedDay.value].plans;
+                    const group = [];
+                    
+                    currentPlans.forEach(plan => {
+                        if (plan.lat && plan.lng) {
+                            const m = L.marker([plan.lat, plan.lng]).addTo(map.value).bindPopup(plan.title);
+                            markers.value.push(m);
+                            group.push([plan.lat, plan.lng]);
+                        }
+                    });
+
+                    if (group.length > 0) {
+                        map.value.fitBounds(group, { padding: [50, 50] });
+                    }
+                };
+
+                const locateMe = () => {
+                    map.value.locate({setView: true, maxZoom: 16});
+                    map.value.on('locationfound', (e) => {
+                        L.circle(e.latlng, e.accuracy).addTo(map.value);
+                        L.marker(e.latlng).addTo(map.value).bindPopup("你現在在這裡").openPopup();
+                    });
+                };
+
+                const changeTab = (tab) => {
+                    activeTab.value = tab;
+                    if (tab === 'map') {
+                        nextTick(() => {
+                            initMap();
+                            setTimeout(() => map.value.invalidateSize(), 100);
+                        });
+                    }
+                };
+
+                const fetchWeather = async () => {
+                    try {
+                        const res = await fetch('https://api.open-meteo.com/v1/forecast?latitude=33.59&longitude=130.40&current_weather=true');
+                        const data = await res.json();
+                        weather.value = { temp: data.current_weather.temperature };
+                    } catch (e) { console.error("Weather failed"); }
+                };
+
+                const addExpense = () => {
+                    if (newExpense.value.amount) {
+                        expenses.value.push({ ...newExpense.value });
+                        newExpense.value = { item: '', amount: null, payer: '大人A' };
+                    }
+                };
+
+                const balances = computed(() => {
+                    let total = 0;
+                    let paidBy = {};
+                    members.forEach(m => paidBy[m] = 0);
+                    expenses.value.forEach(e => { total += e.amount; paidBy[e.payer] += e.amount; });
+                    const share = total / members.length;
+                    let res = {};
+                    members.forEach(m => res[m] = paidBy[m] - share);
+                    return res;
+                });
+
+                onMounted(() => {
+                    lucide.createIcons();
+                    fetchWeather();
+                });
+
+                watch(selectedDay, () => {
+                    if (activeTab.value === 'map') updateMapMarkers();
+                });
+
+                return {
+                    activeTab, selectedDay, itinerary, weather, exchangeRate, fxInput,
+                    members, newExpense, expenses, balances, 
+                    changeTab, addExpense, locateMe, openMap: (q) => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`, '_blank')
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
