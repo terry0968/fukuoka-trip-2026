@@ -149,7 +149,7 @@
                         class="w-full bg-[#9D76C1]/10 text-[#9D76C1] py-4 rounded-[25px] flex items-center justify-center gap-3 border-2 border-dashed border-[#9D76C1] active:scale-95 transition-all">
                     <i data-lucide="refresh-cw" :class="['w-5 h-5', syncStatus === 'loading' ? 'animate-spin' : '']"></i>
                     <span class="font-black text-sm uppercase tracking-widest">
-                        {{ syncStatus === 'loading' ? '同步行程中...' : '同步 Google 試算表' }}
+                        {{ syncStatus === 'loading' ? '正在同步行程...' : '同步 Google 試算表' }}
                     </span>
                 </button>
             </div>
@@ -184,7 +184,12 @@
                 <div v-if="itinerary[selectedDay].plans.length === 0" class="text-center py-10 opacity-30">
                     <i data-lucide="calendar-dashed" class="w-12 h-12 mx-auto mb-2 text-purple-300"></i>
                     <p class="text-sm font-bold">這天暫時沒有行程唷</p>
-                    <p class="text-[10px] mt-1">請檢查試算表日期是否正確</p>
+                    <p class="text-[10px] mt-1 italic">請確定試算表日期格式為 5/30 樣式</p>
+                </div>
+
+                <!-- 偵錯資訊 -->
+                <div v-if="syncCount > 0" class="mt-10 text-center opacity-30 text-[9px] font-bold uppercase tracking-widest">
+                    <p>Debug: 已從雲端讀取 {{ syncCount }} 筆行程</p>
                 </div>
             </main>
         </div>
@@ -276,7 +281,7 @@
                     </button>
                 </div>
 
-                <div v-if="expenseSyncing && expenses.length === 0" class="py-10 text-center text-slate-300 italic">
+                <div v-if="expenseSyncing" class="py-10 text-center text-slate-300 italic">
                     <p class="text-xs animate-pulse">正在從試算表讀取歷史資料...</p>
                 </div>
 
@@ -374,6 +379,7 @@
                 const toastMsg = ref('');
                 const expenseSyncing = ref(false);
                 const syncStatus = ref('idle');
+                const syncCount = ref(0); // 偵錯用筆數
                 
                 const newExpense = ref({ 
                     id: null,
@@ -533,7 +539,7 @@
                     }
                 };
 
-                // --- 核心更新：彈性日期解析 ---
+                // --- 核心更新：極限彈性日期解析 ---
                 const fetchItineraryFromSheet = async () => {
                     syncStatus.value = 'loading';
                     const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${ITINERARY_GID}&t=${Date.now()}`;
@@ -542,7 +548,6 @@
                         const csvText = await response.text();
                         const rows = parseCSV(csvText);
                         
-                        // 重置本地行程
                         const newItinerary = [
                             { date: '5/30', dayName: 'SAT', plans: [] }, { date: '5/31', dayName: 'SUN', plans: [] },
                             { date: '6/01', dayName: 'MON', plans: [] }, { date: '6/02', dayName: 'TUE', plans: [] },
@@ -550,36 +555,39 @@
                             { date: '6/05', dayName: 'FRI', plans: [] }, { date: '6/06', dayName: 'SAT', plans: [] }
                         ];
 
+                        let count = 0;
                         rows.forEach((row, idx) => {
-                            if (idx === 0 || row.length < 3) return; // 跳過標題列
+                            if (idx === 0 || row.length < 3) return;
+                            const cellA = row[0]; // 日期欄位
+                            const cellB = row[1]; // 時間
+                            const cellC = row[2]; // 標題
                             
-                            const rawDateStr = row[0]; // 試算表的日期欄位
-                            if (!rawDateStr || !row[2]) return;
+                            if (!cellA || !cellC) return;
 
-                            // 彈性解析日期：尋找字串中的月份與日期
-                            // 支援 2026/05/30, 5/30, 05/30 等格式
-                            const dateParts = rawDateStr.split(/[\/\-]/);
-                            if (dateParts.length >= 2) {
-                                // 取最後兩個部分（月、日）
-                                const d = parseInt(dateParts.pop());
-                                const m = parseInt(dateParts.pop());
-                                
-                                // 與本地行程清單進行比對
-                                const dayIndex = newItinerary.findIndex(day => { 
-                                    const parts = day.date.split('/'); 
-                                    return parseInt(parts[0]) === m && parseInt(parts[1]) === d; 
+                            // 使用正則表達式尋找月份與日期 (例如 5/30 或 05-30)
+                            const matches = cellA.match(/(\d{1,2})[\/\-月\.](\d{1,2})/);
+                            if (matches) {
+                                const m = parseInt(matches[1]);
+                                const d = parseInt(matches[2]);
+
+                                // 與本地結構比對
+                                const dayIndex = newItinerary.findIndex(day => {
+                                    const parts = day.date.split('/');
+                                    return parseInt(parts[0]) === m && parseInt(parts[1]) === d;
                                 });
-                                
+
                                 if (dayIndex !== -1) {
-                                    newItinerary[dayIndex].plans.push({ 
-                                        time: row[1] || '--:--', 
-                                        title: row[2] 
+                                    newItinerary[dayIndex].plans.push({
+                                        time: cellB || '--:--',
+                                        title: cellC
                                     });
+                                    count++;
                                 }
                             }
                         });
                         
                         itinerary.value = newItinerary;
+                        syncCount.value = count;
                         syncStatus.value = 'success';
                         setTimeout(() => syncStatus.value = 'idle', 3000);
                     } catch (e) { 
@@ -630,7 +638,7 @@
                     fetchItineraryFromSheet, convertCurrency, fetchExchangeRate, 
                     isSaving, isEditing, showToast, toastMsg, 
                     expenseSyncing, fetchExpensesFromSheet, handleWeatherClick, 
-                    editItem, cancelEdit, isUrlConfigured 
+                    editItem, cancelEdit, isUrlConfigured, syncCount
                 };
             }
         }).mount('#app');
