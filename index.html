@@ -77,7 +77,6 @@
 
             <div class="flex justify-between items-center relative z-10">
                 <div class="flex-1 pr-2">
-                    <!-- 字體固定在 text-6xl -->
                     <h1 class="text-6xl font-bold tracking-tighter" style="font-family: 'ZCOOL KuaiLe', cursive;">福岡 2026</h1>
                     <div class="flex items-center gap-2 mt-4">
                         <span class="bg-black/30 px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-widest">KCY FAMILY</span>
@@ -119,27 +118,26 @@
 
         <!-- 1. 行程分頁 -->
         <div v-if="activeTab === 'itinerary'">
-            <div class="px-6 py-8 relative">
+            <!-- 加大的地圖收藏按鈕 -->
+            <div class="px-6 pt-8 pb-4 relative">
                 <button @click="openExternal('https://maps.app.goo.gl/pd5Mgn8orC6EG7dc6')" 
                         class="big-map-btn w-full bg-[#2D2727] text-white py-8 rounded-[40px] flex items-center justify-center gap-5 shadow-2xl border-4 border-[#9D76C1] relative overflow-hidden">
                     <i data-lucide="map-pinned" class="w-10 h-10 text-[#FF91C1]"></i>
                     <div class="text-left">
                         <p class="text-2xl font-bold">打開地圖收藏</p>
-                        <p class="text-[10px] opacity-60 font-bold italic">Ruby 最愛的秘密基地 💜</p>
+                        <p class="text-[10px] opacity-60 font-bold italic">查看預存景點 💜</p>
                     </div>
                 </button>
             </div>
 
-            <!-- 同步按鈕與狀態 -->
-            <div class="px-6 pb-2 flex justify-between items-center">
-                <div class="flex items-center gap-2">
-                    <div v-if="syncStatus === 'loading'" class="w-2 h-2 bg-purple-400 rounded-full animate-ping"></div>
-                    <p class="text-[10px] text-purple-400 font-bold uppercase tracking-widest">
-                        {{ syncStatus === 'loading' ? '正在同步行程...' : '行程已同步' }}
-                    </p>
-                </div>
-                <button @click="fetchItineraryFromSheet" class="text-[10px] bg-purple-100 text-purple-600 px-3 py-1 rounded-full font-bold active:scale-90 transition shadow-sm">
-                    手動重整 🔄
+            <!-- 明顯的同步試算表按鈕 -->
+            <div class="px-6 pb-6">
+                <button @click="fetchItineraryFromSheet" 
+                        class="w-full bg-[#9D76C1]/10 text-[#9D76C1] py-4 rounded-[25px] flex items-center justify-center gap-3 border-2 border-dashed border-[#9D76C1] active:scale-95 transition-all">
+                    <i data-lucide="refresh-cw" :class="['w-5 h-5', syncStatus === 'loading' ? 'animate-spin' : '']"></i>
+                    <span class="font-black text-sm uppercase tracking-widest">
+                        {{ syncStatus === 'loading' ? '同步行程中...' : '同步 Google 試算表' }}
+                    </span>
                 </button>
             </div>
 
@@ -158,7 +156,7 @@
                     <h2 class="text-2xl font-black text-slate-800 tracking-tight">{{ itinerary[selectedDay].date }} 計畫</h2>
                 </div>
 
-                <div v-for="plan in itinerary[selectedDay].plans" class="kuromi-card p-6 mb-5 shadow-lg flex justify-between items-center group">
+                <div v-for="plan in itinerary[selectedDay].plans" :key="plan.title" class="kuromi-card p-6 mb-5 shadow-lg flex justify-between items-center group">
                     <div class="flex-1">
                         <div class="flex items-center gap-2 mb-2">
                             <span class="text-[11px] font-bold text-white bg-[#9D76C1] px-3 py-1 rounded-full">{{ plan.time }}</span>
@@ -173,7 +171,6 @@
                 <div v-if="itinerary[selectedDay].plans.length === 0" class="text-center py-10 opacity-30">
                     <i data-lucide="calendar-dashed" class="w-12 h-12 mx-auto mb-2 text-purple-300"></i>
                     <p class="text-sm font-bold">這天還沒有安排行程唷</p>
-                    <p class="text-[10px] mt-1">請檢查試算表日期格式</p>
                 </div>
             </main>
         </div>
@@ -248,10 +245,10 @@
                 <h3 class="font-black text-2xl text-slate-800 mb-6 px-4 flex items-center gap-3">
                     <i data-lucide="luggage" class="text-[#FF91C1] w-8 h-8"></i> 行李清單
                 </h3>
-                <div v-for="cat in packing" class="mb-10">
+                <div v-for="cat in packing" :key="cat.category" class="mb-10">
                     <p class="text-xs font-black text-[#9D76C1] mb-4 px-4 uppercase tracking-[0.2em] border-l-4 border-[#9D76C1] ml-4">{{cat.category}}</p>
                     <div class="space-y-3">
-                        <div v-for="item in cat.items" @click="item.done = !item.done"
+                        <div v-for="item in cat.items" :key="item.text" @click="item.done = !item.done"
                              class="kuromi-card p-5 flex items-center gap-5 transition-all active:scale-95" :class="{'bg-purple-50 border-transparent opacity-60': item.done}">
                             <div class="w-8 h-8 rounded-full border-4 border-[#9D76C1] flex items-center justify-center transition-colors" :class="{'bg-[#9D76C1]': item.done}">
                                 <i v-if="item.done" data-lucide="check" class="text-white w-5 h-5"></i>
@@ -289,11 +286,11 @@
                 const members = ['KCY', 'Ruby', 'YSL', 'Tsai'];
                 const expenses = ref([]);
                 const newExpense = ref({ date: '2026-05-30', item: '', amount: null, payer: 'KCY' });
-                const syncStatus = ref('loading');
+                const syncStatus = ref('idle');
 
                 const weather = ref({ temp: '--', icon: 'thermometer', desc: 'Syncing', status: 'loading' });
 
-                // 初始行程容器
+                // 初始化行程容器
                 const itinerary = ref([
                     { date: '5/30', dayName: 'SAT', plans: [] },
                     { date: '5/31', dayName: 'SUN', plans: [] },
@@ -333,12 +330,11 @@
                     ]}
                 ]);
 
-                // 核心功能：強化版 Google 試算表抓取行程
+                // 核心功能：極限強化版 Google 試算表抓取行程
                 const fetchItineraryFromSheet = async () => {
                     syncStatus.value = 'loading';
                     const sheetId = '19REJaflyB3ipjTvvQABcAMe95wjiBKwQNf7eH8J97N8';
                     const gid = '1691304811';
-                    // 使用 tsv 或 csv 匯出並加入隨機參數避免快取
                     const url = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}&t=${Date.now()}`;
                     
                     try {
@@ -346,12 +342,12 @@
                         if (!response.ok) throw new Error('Sheet Access Denied');
                         const csvText = await response.text();
                         
+                        // 修正 CSV 解析邏輯，對應 Excel/Google Sheet 匯出的格式
                         const rows = csvText.split('\n').map(row => {
-                            // 處理 CSV 的雙引號與逗號問題
                             return row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(cell => cell.replace(/"/g, '').trim());
                         });
                         
-                        // 重設行程容器
+                        // 重置行程容器
                         const newItinerary = [
                             { date: '5/30', dayName: 'SAT', plans: [] },
                             { date: '5/31', dayName: 'SUN', plans: [] },
@@ -363,27 +359,28 @@
                             { date: '6/06', dayName: 'SAT', plans: [] }
                         ];
 
-                        // 解析邏輯：尋找日期列
                         rows.forEach((row, idx) => {
-                            if (idx === 0 || row.length < 3) return; // 跳過標題列
+                            // 檢查基本欄位：日期(row[0]), 時間(row[1]), 標題(row[2])
+                            if (idx === 0 || row.length < 3) return;
                             
-                            const rawDate = row[0]; // 例如 5/30 或 2026/05/30
-                            const timeStr = row[1];
-                            const titleStr = row[2];
+                            const rawDateStr = row[0]; // 試算表第一欄
+                            const timeStr = row[1];    // 試算表第二欄
+                            const titleStr = row[2];   // 試算表第三欄
 
-                            if (!rawDate || !titleStr) return;
+                            if (!rawDateStr || !titleStr) return;
 
-                            // 彈性日期匹配：將輸入的日期轉換為 M/D 格式進行比對
-                            const dateParts = rawDate.split(/[\/\-]/);
-                            if (dateParts.length >= 2) {
-                                const m = parseInt(dateParts[dateParts.length - 2]);
-                                const d = parseInt(dateParts[dateParts.length - 1]);
-                                const formattedMatch = `${m}/${d < 10 ? '0'+d : d}`;
-                                const simpleMatch = `${m}/${d}`;
-
-                                const dayIndex = newItinerary.findIndex(day => 
-                                    day.date === simpleMatch || day.date === formattedMatch || day.date.includes(simpleMatch)
-                                );
+                            // 強化日期比對邏輯 (特別處理 6/4 格式問題)
+                            // 分解出日期中的數字部分
+                            const dateMatch = rawDateStr.match(/(\d+)\/(\d+)/);
+                            if (dateMatch) {
+                                const m = parseInt(dateMatch[1]);
+                                const d = parseInt(dateMatch[2]);
+                                
+                                // 比對月份與日期 (M/D)
+                                const dayIndex = newItinerary.findIndex(day => {
+                                    const targetParts = day.date.split('/');
+                                    return parseInt(targetParts[0]) === m && parseInt(targetParts[1]) === d;
+                                });
 
                                 if (dayIndex !== -1) {
                                     newItinerary[dayIndex].plans.push({
@@ -396,6 +393,7 @@
 
                         itinerary.value = newItinerary;
                         syncStatus.value = 'success';
+                        setTimeout(() => syncStatus.value = 'idle', 3000);
                     } catch (e) {
                         console.error('Sheet Sync Failed:', e);
                         syncStatus.value = 'error';
