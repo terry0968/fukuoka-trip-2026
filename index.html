@@ -38,6 +38,14 @@
         }
         .float-anim { animation: floating 3s ease-in-out infinite; }
 
+        /* 載入中呼吸燈效果 */
+        @keyframes skeleton-loading {
+            0% { opacity: 0.3; }
+            50% { opacity: 0.6; }
+            100% { opacity: 0.3; }
+        }
+        .loading-shimmer { animation: skeleton-loading 1.5s infinite ease-in-out; }
+
         @keyframes pulse-purple {
             0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(157, 118, 193, 0.7); }
             70% { transform: scale(1.02); box-shadow: 0 0 0 10px rgba(157, 118, 193, 0); }
@@ -70,7 +78,7 @@
 
             <div class="flex justify-between items-center relative z-10">
                 <div class="flex-1 pr-2">
-                    <!-- 字體調整至 text-6xl -->
+                    <!-- 字體固定在 text-6xl -->
                     <h1 class="text-6xl font-bold tracking-tighter" style="font-family: 'ZCOOL KuaiLe', cursive;">福岡 2026</h1>
                     <div class="flex items-center gap-2 mt-4">
                         <span class="bg-black/30 px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-widest">KCY FAMILY</span>
@@ -78,19 +86,27 @@
                     </div>
                 </div>
                 
-                <!-- 天氣區塊 -->
+                <!-- 天氣區塊：App 風格動態組件 -->
                 <div @click="handleWeatherClick"
-                     class="bg-black/40 p-4 rounded-[40px] backdrop-blur-xl text-center border border-white/20 min-w-[120px] float-anim cursor-pointer hover:bg-black/60 active:scale-95 transition-all shadow-lg">
-                    <div class="flex justify-center mb-1">
-                        <i v-if="weather.icon === 'sun'" data-lucide="sun" class="w-12 h-12 text-yellow-400"></i>
-                        <i v-else-if="weather.icon === 'cloud-sun'" data-lucide="cloud-sun" class="w-12 h-12 text-[#FF91C1]"></i>
-                        <i v-else-if="weather.icon === 'cloud'" data-lucide="cloud" class="w-12 h-12 text-slate-300"></i>
-                        <i v-else-if="weather.icon === 'cloud-rain'" data-lucide="cloud-rain" class="w-12 h-12 text-blue-400"></i>
-                        <i v-else-if="weather.icon === 'snowflake'" data-lucide="snowflake" class="w-12 h-12 text-cyan-200"></i>
-                        <i v-else data-lucide="cloud-lightning" class="w-12 h-12 text-[#FF91C1]"></i>
+                     :class="['bg-black/40 p-4 rounded-[40px] backdrop-blur-xl text-center border border-white/20 min-w-[120px] float-anim cursor-pointer hover:bg-black/60 active:scale-95 transition-all shadow-lg', weather.status === 'loading' ? 'loading-shimmer' : '']">
+                    
+                    <div v-if="weather.status === 'loading'" class="py-4">
+                        <i data-lucide="refresh-cw" class="w-8 h-8 animate-spin mx-auto text-purple-200"></i>
+                        <p class="text-[10px] mt-2 opacity-50">SYNCING...</p>
                     </div>
-                    <p class="text-3xl font-black">{{ weather.temp }}°C</p>
-                    <p class="text-[10px] opacity-80 font-bold uppercase tracking-tighter mt-1">{{ weather.desc }}</p>
+
+                    <div v-else>
+                        <div class="flex justify-center mb-1">
+                            <i v-if="weather.icon === 'sun'" data-lucide="sun" class="w-12 h-12 text-yellow-400"></i>
+                            <i v-else-if="weather.icon === 'cloud-sun'" data-lucide="cloud-sun" class="w-12 h-12 text-[#FF91C1]"></i>
+                            <i v-else-if="weather.icon === 'cloud'" data-lucide="cloud" class="w-12 h-12 text-slate-300"></i>
+                            <i v-else-if="weather.icon === 'cloud-rain'" data-lucide="cloud-rain" class="w-12 h-12 text-blue-400"></i>
+                            <i v-else-if="weather.icon === 'snowflake'" data-lucide="snowflake" class="w-12 h-12 text-cyan-200"></i>
+                            <i v-else data-lucide="cloud-lightning" class="w-12 h-12 text-[#FF91C1]"></i>
+                        </div>
+                        <p class="text-3xl font-black">{{ weather.temp }}°C</p>
+                        <p class="text-[10px] opacity-80 font-bold uppercase tracking-tighter mt-1">{{ weather.desc }}</p>
+                    </div>
                 </div>
             </div>
         </header>
@@ -258,8 +274,8 @@
                 const expenses = ref([]);
                 const newExpense = ref({ date: '2026-05-30', item: '', amount: null, payer: 'KCY' });
 
-                // 天氣響應式狀態
-                const weather = ref({ temp: '--', icon: 'thermometer', desc: '查詢中...', status: 'loading' });
+                // 天氣響應式狀態 (預設 loading)
+                const weather = ref({ temp: '--', icon: 'thermometer', desc: '抓取中...', status: 'loading' });
 
                 const itinerary = ref([
                     { date: '5/30', dayName: 'SAT', plans: [{time: '14:40', title: 'CI128 夢幻起飛 ✈️'}, {time: '18:05', title: '抵達福岡機場 🇯🇵'}, {time: '20:00', title: '西鐵 CROOM 入住 🏨'}]},
@@ -300,23 +316,21 @@
                     ]}
                 ]);
 
-                // 處理天氣區塊點擊
                 const handleWeatherClick = () => {
                     if (weather.value.status === 'error') {
-                        weather.value.desc = '刷新中...';
+                        weather.value.status = 'loading';
+                        weather.value.desc = '同步中...';
                         fetchWeather();
                     } else {
                         openExternal('https://tenki.jp/forecast/9/43/8210/40130/');
                     }
                 };
 
-                // 強化版氣象抓取邏輯
                 const fetchWeather = async () => {
                     const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 6000);
+                    const timeoutId = setTimeout(() => controller.abort(), 7000);
 
                     try {
-                        // 嘗試主要 API (Open-Meteo)
                         const response = await fetch('https://api.open-meteo.com/v1/forecast?latitude=33.59&longitude=130.40&current_weather=true&timezone=Asia%2FTokyo', {
                             signal: controller.signal,
                             cache: 'no-store'
@@ -326,21 +340,20 @@
                         clearTimeout(timeoutId);
 
                         if (data && data.current_weather) {
-                            updateWeatherState(data.current_weather.temperature, data.current_weather.weathercode);
+                            updateWeatherUI(data.current_weather.temperature, data.current_weather.weathercode);
                         } else {
-                            throw new Error('Data invalid');
+                            throw new Error('Data Empty');
                         }
                     } catch (e) {
-                        console.warn('Primary API failed, trying backup...');
+                        console.warn('API 1 Failed, trying Backup...');
                         try {
-                            // 嘗試備用 API (wttr.in)
                             const backupRes = await fetch('https://wttr.in/Fukuoka?format=j1');
                             const backupData = await backupRes.json();
                             if (backupData && backupData.current_condition) {
                                 const temp = backupData.current_condition[0].temp_C;
-                                updateWeatherState(temp, 1); // 預設多雲
+                                updateWeatherUI(temp, 1); // 預設多雲
                             } else {
-                                throw new Error('Backup failed');
+                                throw new Error('Backup Failed');
                             }
                         } catch (err) {
                             weather.value.desc = '點擊刷新';
@@ -353,7 +366,7 @@
                     }
                 };
 
-                const updateWeatherState = async (temp, code) => {
+                const updateWeatherUI = async (temp, code) => {
                     weather.value.temp = Math.round(temp);
                     weather.value.status = 'success';
                     
