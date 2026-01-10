@@ -69,7 +69,7 @@
     </style>
 </head>
 <body>
-    <div id="app" v-cloak class="max-w-md mx-auto min-h-screen relative pb-32 overflow-x-hidden">
+    <div id="app" class="max-w-md mx-auto min-h-screen relative pb-32 overflow-x-hidden">
         
         <!-- 成功提示視窗 -->
         <transition name="toast">
@@ -99,6 +99,7 @@
                     </div>
                 </div>
                 
+                <!-- 天氣區塊 -->
                 <div @click="handleWeatherClick"
                      :class="['bg-black/40 p-4 rounded-[40px] backdrop-blur-xl text-center border border-white/20 min-w-[120px] float-anim cursor-pointer hover:bg-black/60 active:scale-95 transition-all shadow-lg', weather.status === 'loading' ? 'loading-shimmer' : '']">
                     
@@ -236,7 +237,6 @@
                     </div>
                 </div>
 
-                <!-- 雙向自動換算金額欄位 -->
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="text-[10px] text-slate-400 font-bold ml-1">金額 (日幣 ¥)</label>
@@ -258,9 +258,8 @@
                     <button v-if="isEditing" @click="cancelEdit" class="px-6 bg-slate-100 text-slate-400 rounded-[30px] font-bold text-sm shadow-sm active:scale-90 transition">取消</button>
                 </div>
                 
-                <!-- 偵測狀態 -->
                 <p v-if="!isUrlConfigured" class="text-[9px] text-red-400 font-bold text-center mt-2 animate-pulse">
-                    ⚠️ 偵測到雲端網址尚未正確設定，請更換代碼第 237 行。
+                    ⚠️ 偵測到雲端網址尚未正確設定，請更換代碼第 231 行。
                 </p>
             </div>
             
@@ -348,7 +347,7 @@
         const { createApp, ref, computed, onMounted, nextTick } = Vue;
         createApp({
             setup() {
-                // --- ⚠️ 雲端參數設定 ---
+                // --- ⚠️ 核心網址設定 ---
                 const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxUaoB_wXAYkZh3cW0S5HB_41Gw4wYI-mBkMjIYWOThVRgS-4e8bmWOTclAwLUkOUY/exec"; 
                 
                 const SHEET_ID = '19REJaflyB3ipjTvvQABcAMe95wjiBKwQNf7eH8J97N8';
@@ -393,9 +392,9 @@
 
                 const packing = ref([
                     { category: '一、必備證件與財務', items: [{text: '護照 (效期6月以上)', done: false}, {text: '機票/訂位紀錄', done: false}, {text: '信用卡/日幣現金', done: false}] },
-                    { category: '二、衣物配件', items: [{text: '內衣褲/襪子/睡衣', done: false}, {text: '舒適好走的鞋/拖鞋', done: false}] },
+                    { category: '二、衣物配件', items: [{text: '睡衣/內衣褲/襪子', done: false}, {text: '舒適好走的鞋/拖鞋', done: false}] },
                     { category: '三、盥洗保養', items: [{text: '牙刷牙膏/洗面乳', done: false}, {text: '分裝保養品/生理用品', done: false}] },
-                    { category: '四、3C用品', items: [{text: '手機/充電器/充電線', done: false}, {text: '行動電源 (必手提)', done: false}] }
+                    { category: '四、3C用品', items: [{text: '手機/充電線/充電器', done: false}, {text: '行動電源 (必手提)', done: false}] }
                 ]);
 
                 const fetchExchangeRate = async () => {
@@ -456,7 +455,7 @@
                             if (!mergedMap.has(item.id)) mergedMap.set(item.id, item);
                         });
 
-                        const sortedData = Array.from(mergedMap.values()).sort((a, b) => new Date(b.date) - new Date(a.date));
+                        const sortedData = Array.from(mergedMap.values()).sort((a, b) => b.id.localeCompare(a.id));
                         expenses.value = sortedData;
                     } catch (e) { console.error("Cloud Load Error:", e); }
                     finally { 
@@ -512,7 +511,7 @@
                         setTimeout(fetchExpensesFromSheet, 5000);
                     } catch (err) {
                         console.error("Sync Error:", err);
-                        toastMsg.value = "連線失敗，資料僅留存在本地";
+                        toastMsg.value = "連線失敗，資料僅留存在手機中";
                         showToast.value = true;
                     } finally {
                         isSaving.value = false;
