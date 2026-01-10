@@ -154,6 +154,7 @@
                 </button>
             </div>
 
+            <!-- 日期導覽 -->
             <div class="flex overflow-x-auto px-6 space-x-4 hide-scrollbar py-2">
                 <div v-for="(day, index) in itinerary" :key="index" @click="selectedDay = index"
                      :class="['flex-shrink-0 w-16 h-22 rounded-3xl flex flex-col items-center justify-center transition-all border-4', 
@@ -169,7 +170,8 @@
                     <h2 class="text-2xl font-black text-slate-800 tracking-tight">{{ itinerary[selectedDay].date }} 計畫</h2>
                 </div>
 
-                <div v-for="plan in itinerary[selectedDay].plans" :key="plan.title" class="kuromi-card p-6 mb-5 shadow-lg flex justify-between items-center group">
+                <!-- 行程列表 -->
+                <div v-for="plan in itinerary[selectedDay].plans" :key="plan.title + plan.time" class="kuromi-card p-6 mb-5 shadow-lg flex justify-between items-center group">
                     <div class="flex-1">
                         <div class="flex items-center gap-2 mb-2">
                             <span class="text-[11px] font-bold text-white bg-[#9D76C1] px-3 py-1 rounded-full">{{ plan.time }}</span>
@@ -186,12 +188,10 @@
                     <p class="text-sm font-bold">這天暫時沒有行程唷</p>
                 </div>
 
-                <!-- 終極偵錯視窗 -->
-                <div class="mt-10 p-4 bg-slate-100 rounded-3xl opacity-50 border-2 border-dashed border-slate-300 text-[9px] font-bold text-slate-500 uppercase tracking-widest">
-                    <p class="mb-2">📋 雲端資料偵測器 (Debug)</p>
-                    <p v-if="debugHeaders.length > 0">標題列: {{ debugHeaders.join(' | ') }}</p>
-                    <p v-else>等待同步中...</p>
-                    <p class="mt-1">已解析行程數: {{ syncCount }}</p>
+                <!-- 偵錯資訊 -->
+                <div v-if="syncCount > 0" class="mt-10 text-center opacity-30 text-[9px] font-bold uppercase tracking-widest border-t pt-4">
+                    <p>Debug: 已解析 {{ syncCount }} 項行程</p>
+                    <p>佈局模式: A-時間 | B-5/30 | C-5/31 ...</p>
                 </div>
             </main>
         </div>
@@ -283,7 +283,7 @@
                     </button>
                 </div>
 
-                <div v-if="expenseSyncing" class="py-10 text-center text-slate-300 italic">
+                <div v-if="expenseSyncing && expenses.length === 0" class="py-10 text-center text-slate-300 italic">
                     <p class="text-xs animate-pulse">正在從試算表讀取歷史資料...</p>
                 </div>
 
@@ -310,6 +310,11 @@
                         <i data-lucide="info" class="w-3 h-3 mt-0.5 text-purple-300"></i>
                         {{ ex.remark }}
                     </p>
+                </div>
+
+                <div v-if="!expenseSyncing && expenses.length === 0" class="py-12 text-center opacity-20">
+                    <i data-lucide="receipt" class="w-16 h-16 mx-auto mb-2"></i>
+                    <p class="text-sm font-bold tracking-widest uppercase">No Records Found</p>
                 </div>
             </div>
         </div>
@@ -357,7 +362,7 @@
         const { createApp, ref, computed, onMounted, nextTick } = Vue;
         createApp({
             setup() {
-                // --- ⚠️ 雲端設定 ---
+                // --- ⚠️ 雲端參數設定 ---
                 const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxUaoB_wXAYkZh3cW0S5HB_41Gw4wYI-mBkMjIYWOThVRgS-4e8bmWOTclAwLUkOUY/exec"; 
                 const SHEET_ID = '19REJaflyB3ipjTvvQABcAMe95wjiBKwQNf7eH8J97N8';
                 const ITINERARY_GID = '1691304811';
@@ -377,17 +382,12 @@
                 const expenseSyncing = ref(false);
                 const syncStatus = ref('idle');
                 const syncCount = ref(0);
-                const debugHeaders = ref([]);
                 
                 const newExpense = ref({ 
                     id: null, date: new Date().toISOString().split('T')[0], 
                     item: '', amount: null, amountTwd: null, payer: 'KCY', remark: ''
                 });
 
-                const isUrlConfigured = computed(() => {
-                    return GAS_WEB_APP_URL.includes("script.google.com");
-                });
-                
                 const weather = ref({ temp: '--', icon: 'thermometer', desc: 'Syncing', status: 'loading' });
 
                 const itinerary = ref([
@@ -426,7 +426,8 @@
 
                 const parseCSV = (text) => {
                     const rows = [];
-                    const lines = text.split('\n');
+                    // 強化版換行解析，移除潛在的 \r 字元
+                    const lines = text.replace(/\r/g, '').split('\n');
                     lines.forEach(line => {
                         const parts = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
                         rows.push(parts.map(p => p.replace(/"/g, '').trim()));
@@ -494,7 +495,7 @@
                     finally { isSaving.value = false; await nextTick(); lucide.createIcons(); }
                 };
 
-                // --- 核心修正：位置對應法 ---
+                // --- 🚀 核心修正：位置對應法解析行程 ---
                 const fetchItineraryFromSheet = async () => {
                     syncStatus.value = 'loading';
                     const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${ITINERARY_GID}&t=${Date.now()}`;
@@ -503,7 +504,7 @@
                         const csvText = await response.text();
                         const rows = parseCSV(csvText);
                         
-                        // 重設行程結構
+                        // 重設 8 天行程
                         const newItinerary = [
                             { date: '5/30', dayName: 'SAT', plans: [] }, { date: '5/31', dayName: 'SUN', plans: [] },
                             { date: '6/1', dayName: 'MON', plans: [] }, { date: '6/2', dayName: 'TUE', plans: [] },
@@ -512,36 +513,34 @@
                         ];
 
                         if (rows.length < 1) return;
-                        debugHeaders.value = rows[0]; // 儲存第一列用於 Debug
-
+                        
                         let count = 0;
                         // 遍歷所有列 (Row)
                         for (let i = 1; i < rows.length; i++) {
                             const row = rows[i];
-                            const timeStr = row[0]; // A 欄：時間
-                            if (!timeStr || timeStr.trim() === "") continue;
-
-                            // 重要：直接使用位置對應
-                            // B欄(索引1)對應5/30, C欄(索引2)對應5/31 ...
-                            for (let j = 1; j <= 8; j++) {
-                                const planContent = row[j];
-                                // 如果格子內有字，且對應的天數存在於 itinerary 中
-                                if (planContent && planContent.trim() !== "" && newItinerary[j-1]) {
-                                    newItinerary[j-1].plans.push({
-                                        time: timeStr.trim(),
-                                        title: planContent.trim()
+                            const timeStr = row[0]; // A 欄：絕對是時間
+                            
+                            // 遍歷欄位：B(1) 對應 5/30, C(2) 對應 5/31... I(8) 對應 6/6
+                            for (let colIdx = 1; colIdx <= 8; colIdx++) {
+                                const planTitle = row[colIdx];
+                                
+                                // 如果格子有字且對應的本地行程存在
+                                if (planTitle && planTitle.trim() !== "" && newItinerary[colIdx-1]) {
+                                    newItinerary[colIdx-1].plans.push({
+                                        time: timeStr || '--:--', // 抓 A 欄位
+                                        title: planTitle.trim()
                                     });
                                     count++;
                                 }
                             }
                         }
 
-                        // 排序每一天的行程
+                        // 為每一天排序時間
                         newItinerary.forEach(day => {
                             day.plans.sort((a, b) => {
-                                const timeA = a.time.replace(/\D/g, '').padEnd(4, '0');
-                                const timeB = b.time.replace(/\D/g, '').padEnd(4, '0');
-                                return timeA.localeCompare(timeB);
+                                const tA = a.time.replace(/\D/g, '').padEnd(4, '0');
+                                const tB = b.time.replace(/\D/g, '').padEnd(4, '0');
+                                return tA.localeCompare(tB);
                             });
                         });
                         
@@ -550,7 +549,7 @@
                         syncStatus.value = 'success';
                         setTimeout(() => syncStatus.value = 'idle', 3000);
                     } catch (e) { 
-                        console.error("行程同步出錯", e);
+                        console.error("Itinerary Sync Fail", e);
                         syncStatus.value = 'error'; 
                     }
                     await nextTick();
@@ -597,7 +596,7 @@
                     fetchItineraryFromSheet, convertCurrency, fetchExchangeRate, 
                     isSaving, isEditing, showToast, toastMsg, 
                     expenseSyncing, fetchExpensesFromSheet, handleWeatherClick, 
-                    editItem, cancelEdit, isUrlConfigured, syncCount, debugHeaders
+                    editItem, cancelEdit, syncCount 
                 };
             }
         }).mount('#app');
