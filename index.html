@@ -187,9 +187,8 @@
             </main>
         </div>
 
-        <!-- 2. 錢包管家 (記帳分頁) -->
+        <!-- 2. 錢包管家 -->
         <div v-if="activeTab === 'expense'" class="p-6 space-y-8">
-            <!-- 匯率工具 -->
             <div class="kuromi-card bg-[#2D2727] text-white p-8 shadow-2xl border-none">
                 <div class="flex justify-between items-start mb-4">
                     <div>
@@ -234,7 +233,6 @@
                     </div>
                 </div>
 
-                <!-- 雙向自動換算金額欄位 -->
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="text-[10px] text-slate-400 font-bold ml-1">金額 (日幣 ¥)</label>
@@ -252,10 +250,6 @@
                     <i v-if="isSaving" data-lucide="loader-2" class="animate-spin"></i>
                     {{ isSaving ? '同步至試算表中...' : '紀錄支出並同步 💜' }}
                 </button>
-                
-                <p v-if="!isUrlConfigured" class="text-[9px] text-red-400 font-bold text-center mt-2 animate-pulse">
-                    ⚠️ 偵測到雲端網址尚未正確設定，請更換代碼第 237 行。
-                </p>
             </div>
             
             <!-- 支出明細 -->
@@ -337,8 +331,8 @@
         const { createApp, ref, computed, onMounted, nextTick } = Vue;
         createApp({
             setup() {
-                // --- ⚠️ 核心網址設定：請將下方網址換成您 Google Apps Script 部署後取得的網址 ---
-                const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxUaoB_wXAYkZh3cW0S5HB_41Gw4wYI-mBkMjIYWOThVRgS-4e8bmWOTclAwLUkOUY/exec"; 
+                // --- ⚠️ 已成功填入你的專屬 GAS 網址 ---
+                const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzUaoB_wXAYkZh3cW0S5HB_41Gw4wYI-mBkMjIYWOThVRgS-4e8bmWOTclAwLUkOUY/exec"; 
                 
                 const SHEET_ID = '19REJaflyB3ipjTvvQABcAMe95wjiBKwQNf7eH8J97N8';
                 const ITINERARY_GID = '1691304811';
@@ -365,7 +359,7 @@
                 });
 
                 const isUrlConfigured = computed(() => {
-                    return GAS_WEB_APP_URL.includes("script.google.com") && !GAS_WEB_APP_URL.includes("H1J0");
+                    return GAS_WEB_APP_URL.includes("script.google.com");
                 });
                 
                 const weather = ref({ temp: '--', icon: 'thermometer', desc: 'Syncing', status: 'loading' });
