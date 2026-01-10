@@ -186,8 +186,12 @@
                     <p class="text-sm font-bold">這天暫時沒有行程唷</p>
                 </div>
 
-                <div v-if="syncCount > 0" class="mt-10 text-center opacity-30 text-[9px] font-bold uppercase tracking-widest">
-                    <p>Debug: 已解析 {{ syncCount }} 項行程</p>
+                <!-- 終極偵錯視窗 -->
+                <div class="mt-10 p-4 bg-slate-100 rounded-3xl opacity-50 border-2 border-dashed border-slate-300 text-[9px] font-bold text-slate-500 uppercase tracking-widest">
+                    <p class="mb-2">📋 雲端資料偵測器 (Debug)</p>
+                    <p v-if="debugHeaders.length > 0">標題列: {{ debugHeaders.join(' | ') }}</p>
+                    <p v-else>等待同步中...</p>
+                    <p class="mt-1">已解析行程數: {{ syncCount }}</p>
                 </div>
             </main>
         </div>
@@ -307,11 +311,6 @@
                         {{ ex.remark }}
                     </p>
                 </div>
-
-                <div v-if="!expenseSyncing && expenses.length === 0" class="py-12 text-center opacity-20">
-                    <i data-lucide="receipt" class="w-16 h-16 mx-auto mb-2"></i>
-                    <p class="text-sm font-bold tracking-widest uppercase">No Records Found</p>
-                </div>
             </div>
         </div>
 
@@ -358,8 +357,8 @@
         const { createApp, ref, computed, onMounted, nextTick } = Vue;
         createApp({
             setup() {
+                // --- ⚠️ 雲端設定 ---
                 const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxUaoB_wXAYkZh3cW0S5HB_41Gw4wYI-mBkMjIYWOThVRgS-4e8bmWOTclAwLUkOUY/exec"; 
-                
                 const SHEET_ID = '19REJaflyB3ipjTvvQABcAMe95wjiBKwQNf7eH8J97N8';
                 const ITINERARY_GID = '1691304811';
                 const EXPENSE_GID = '146729228';
@@ -378,6 +377,7 @@
                 const expenseSyncing = ref(false);
                 const syncStatus = ref('idle');
                 const syncCount = ref(0);
+                const debugHeaders = ref([]);
                 
                 const newExpense = ref({ 
                     id: null, date: new Date().toISOString().split('T')[0], 
@@ -494,7 +494,7 @@
                     finally { isSaving.value = false; await nextTick(); lucide.createIcons(); }
                 };
 
-                // --- 核心更新：根據橫向佈局重新編寫解析邏輯 ---
+                // --- 核心修正：位置對應法 ---
                 const fetchItineraryFromSheet = async () => {
                     syncStatus.value = 'loading';
                     const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${ITINERARY_GID}&t=${Date.now()}`;
@@ -503,6 +503,7 @@
                         const csvText = await response.text();
                         const rows = parseCSV(csvText);
                         
+                        // 重設行程結構
                         const newItinerary = [
                             { date: '5/30', dayName: 'SAT', plans: [] }, { date: '5/31', dayName: 'SUN', plans: [] },
                             { date: '6/1', dayName: 'MON', plans: [] }, { date: '6/2', dayName: 'TUE', plans: [] },
@@ -511,44 +512,31 @@
                         ];
 
                         if (rows.length < 1) return;
-                        
-                        const headers = rows[0]; 
-                        let count = 0;
+                        debugHeaders.value = rows[0]; // 儲存第一列用於 Debug
 
+                        let count = 0;
+                        // 遍歷所有列 (Row)
                         for (let i = 1; i < rows.length; i++) {
                             const row = rows[i];
-                            const timeStr = row[0]; 
-                            if (!timeStr) continue;
+                            const timeStr = row[0]; // A 欄：時間
+                            if (!timeStr || timeStr.trim() === "") continue;
 
-                            for (let j = 1; j < row.length; j++) {
+                            // 重要：直接使用位置對應
+                            // B欄(索引1)對應5/30, C欄(索引2)對應5/31 ...
+                            for (let j = 1; j <= 8; j++) {
                                 const planContent = row[j];
-                                if (!planContent || planContent.trim() === "") continue;
-
-                                const headerText = headers[j]; 
-                                if (!headerText) continue;
-
-                                // 智慧解析日期：從後往前抓取數字，避免年份 2026 被誤認為日期
-                                const dateParts = headerText.split(/[\/\-月\.年\s]+/).filter(p => /\d+/.test(p));
-                                if (dateParts.length >= 2) {
-                                    const d = parseInt(dateParts.pop()); // 最後一個是日
-                                    const m = parseInt(dateParts.pop()); // 倒數第二個是月
-
-                                    const dayIndex = newItinerary.findIndex(day => {
-                                        const p = day.date.split('/');
-                                        return parseInt(p[0]) === m && parseInt(p[1]) === d;
+                                // 如果格子內有字，且對應的天數存在於 itinerary 中
+                                if (planContent && planContent.trim() !== "" && newItinerary[j-1]) {
+                                    newItinerary[j-1].plans.push({
+                                        time: timeStr.trim(),
+                                        title: planContent.trim()
                                     });
-
-                                    if (dayIndex !== -1) {
-                                        newItinerary[dayIndex].plans.push({
-                                            time: timeStr.trim(),
-                                            title: planContent.trim()
-                                        });
-                                        count++;
-                                    }
+                                    count++;
                                 }
                             }
                         }
 
+                        // 排序每一天的行程
                         newItinerary.forEach(day => {
                             day.plans.sort((a, b) => {
                                 const timeA = a.time.replace(/\D/g, '').padEnd(4, '0');
@@ -561,7 +549,10 @@
                         syncCount.value = count;
                         syncStatus.value = 'success';
                         setTimeout(() => syncStatus.value = 'idle', 3000);
-                    } catch (e) { syncStatus.value = 'error'; }
+                    } catch (e) { 
+                        console.error("行程同步出錯", e);
+                        syncStatus.value = 'error'; 
+                    }
                     await nextTick();
                     lucide.createIcons();
                 };
@@ -606,7 +597,7 @@
                     fetchItineraryFromSheet, convertCurrency, fetchExchangeRate, 
                     isSaving, isEditing, showToast, toastMsg, 
                     expenseSyncing, fetchExpensesFromSheet, handleWeatherClick, 
-                    editItem, cancelEdit, isUrlConfigured, syncCount 
+                    editItem, cancelEdit, isUrlConfigured, syncCount, debugHeaders
                 };
             }
         }).mount('#app');
