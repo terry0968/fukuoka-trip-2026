@@ -23,7 +23,6 @@
             color: var(--kuromi-dark);
             background-image: radial-gradient(var(--kuromi-purple) 0.5px, transparent 0.5px);
             background-size: 20px 20px;
-            background-opacity: 0.1;
         }
 
         [v-cloak] { display: none; }
@@ -54,21 +53,14 @@
             overflow: hidden;
         }
 
-        .sticker {
-            position: absolute;
-            pointer-events: none;
-            opacity: 0.6;
-        }
-
         .hide-scrollbar::-webkit-scrollbar { display: none; }
     </style>
 </head>
 <body>
     <div id="app" v-cloak class="max-w-md mx-auto min-h-screen relative pb-32 overflow-x-hidden">
         
-        <!-- Header: 加上庫洛米插畫與裝飾 -->
+        <!-- Header -->
         <header class="kuromi-gradient text-white p-8 pt-14 rounded-b-[60px] shadow-2xl relative">
-            <!-- 裝飾性惡魔耳插畫 (SVG) -->
             <div class="absolute -top-2 left-1/2 -translate-x-1/2 opacity-20">
                 <svg width="200" height="100" viewBox="0 0 200 100">
                     <path d="M40,100 L0,20 L60,60 Z" fill="black" />
@@ -85,7 +77,6 @@
                     </div>
                 </div>
                 
-                <!-- 加大的天氣區塊 -->
                 <div class="bg-black/30 p-4 rounded-[35px] backdrop-blur-md text-center border border-white/20 min-w-[110px] float-anim">
                     <i data-lucide="cloud-sun" class="w-12 h-12 mx-auto mb-1 text-[#FF91C1]"></i>
                     <p class="text-3xl font-black">24°C</p>
@@ -103,24 +94,17 @@
 
         <!-- 1. 行程分頁 -->
         <div v-if="activeTab === 'itinerary'">
-            <!-- 加大的地圖收藏按鈕 (插畫強化) -->
             <div class="px-6 py-8 relative">
                 <button @click="openExternal('https://maps.app.goo.gl/pd5Mgn8orC6EG7dc6')" 
                         class="big-map-btn w-full bg-[#2D2727] text-white py-8 rounded-[40px] flex items-center justify-center gap-5 shadow-2xl border-4 border-[#9D76C1] relative overflow-hidden">
-                    <div class="absolute right-0 top-0 opacity-20">
-                        <svg width="100" height="100" viewBox="0 0 100 100">
-                            <circle cx="80" cy="20" r="40" fill="#9D76C1" />
-                        </svg>
-                    </div>
                     <i data-lucide="map-pinned" class="w-10 h-10 text-[#FF91C1]"></i>
                     <div class="text-left">
                         <p class="text-2xl font-bold">打開地圖收藏</p>
-                        <p class="text-[10px] opacity-60">Ruby 最喜歡的秘密基地 💜</p>
+                        <p class="text-[10px] opacity-60 font-bold italic">Ruby 最愛的秘密基地 💜</p>
                     </div>
                 </button>
             </div>
 
-            <!-- 日期選擇 -->
             <div class="flex overflow-x-auto px-6 space-x-4 hide-scrollbar py-2">
                 <div v-for="(day, index) in itinerary" :key="index" @click="selectedDay = index"
                      :class="['flex-shrink-0 w-16 h-22 rounded-3xl flex flex-col items-center justify-center transition-all border-4', 
@@ -136,7 +120,7 @@
                     <h2 class="text-2xl font-black text-slate-800 tracking-tight">{{ itinerary[selectedDay].date }} 計畫</h2>
                 </div>
 
-                <div v-for="plan in itinerary[selectedDay].plans" class="kuromi-card p-6 mb-5 shadow-lg flex justify-between items-center group relative">
+                <div v-for="plan in itinerary[selectedDay].plans" class="kuromi-card p-6 mb-5 shadow-lg flex justify-between items-center group">
                     <div class="flex-1">
                         <div class="flex items-center gap-2 mb-2">
                             <span class="text-[11px] font-bold text-white bg-[#9D76C1] px-3 py-1 rounded-full">{{ plan.time }}</span>
@@ -146,10 +130,6 @@
                     <button @click="openExternal(plan.title)" class="p-5 bg-[#F5F3F7] rounded-[30px] text-[#9D76C1] shadow-inner active:scale-90 transition">
                         <i data-lucide="navigation-2" class="w-7 h-7"></i>
                     </button>
-                    <!-- 卡片小裝飾 -->
-                    <div class="absolute -right-2 -bottom-2 opacity-10">
-                        <i data-lucide="sparkles" class="w-12 h-12"></i>
-                    </div>
                 </div>
             </main>
         </div>
@@ -205,7 +185,7 @@
 
         <!-- 3. 工具與清單 -->
         <div v-if="activeTab === 'tools'" class="p-6 space-y-10">
-            <!-- 飯店插畫區 -->
+            <!-- 飯店資訊 -->
             <section class="kuromi-card p-8 bg-white border-4 border-[#9D76C1] shadow-2xl relative">
                 <div class="absolute -right-4 -top-4 float-anim">
                     <svg width="60" height="60" viewBox="0 0 60 60">
@@ -214,17 +194,17 @@
                     </svg>
                 </div>
                 <h3 class="font-black text-2xl mb-1 text-[#2D2727]">博多西鐵 CROOM</h3>
-                <p class="text-xs text-slate-400 mb-6 font-bold uppercase tracking-widest">Hakata-Gion Hotel</p>
+                <p class="text-xs text-slate-400 mb-6 font-bold uppercase tracking-widest">博多祇園櫛田神社前</p>
                 <div class="flex gap-4">
                     <button @click="openExternal('博多祇園櫛田神社前西鐵克魯姆酒店')" class="flex-1 bg-[#2D2727] text-white py-4 rounded-[25px] text-xs font-bold shadow-lg">地圖定位 📍</button>
                     <a href="tel:092-235-0311" class="flex-1 border-4 border-[#2D2727] text-center py-4 rounded-[25px] text-xs font-bold">撥打電話 📞</a>
                 </div>
             </section>
 
-            <!-- 行李大作戰清單 -->
+            <!-- 行李清單 -->
             <section>
                 <h3 class="font-black text-2xl text-slate-800 mb-6 px-4 flex items-center gap-3">
-                    <i data-lucide="luggage" class="text-[#FF91C1] w-8 h-8"></i> 行李大作戰
+                    <i data-lucide="luggage" class="text-[#FF91C1] w-8 h-8"></i> 行李清單
                 </h3>
                 <div v-for="cat in packing" class="mb-10">
                     <p class="text-xs font-black text-[#9D76C1] mb-4 px-4 uppercase tracking-[0.2em] border-l-4 border-[#9D76C1] ml-4">{{cat.category}}</p>
@@ -245,28 +225,15 @@
                         <i data-lucide="alert-circle" class="w-4 h-4"></i> 托運與手提注意事項
                     </h4>
                     <ul class="text-[11px] space-y-3 opacity-90">
-                        <li class="flex gap-2">
-                            <span class="text-[#9D76C1] font-bold">●</span>
-                            <span><b>液體：</b>手提不得超過 100ml，需裝入透明夾鏈袋 (總量不超過 1L)。</span>
-                        </li>
-                        <li class="flex gap-2">
-                            <span class="text-[#9D76C1] font-bold">●</span>
-                            <span><b>打火機：</b>一般打火機僅限 1 個可手提，其他嚴禁。</span>
-                        </li>
-                        <li class="flex gap-2">
-                            <span class="text-[#9D76C1] font-bold">●</span>
-                            <span><b>電池：</b>行動電源/鋰電池只能手提，<b>不可托運</b>。</span>
-                        </li>
-                        <li class="flex gap-2">
-                            <span class="text-[#9D76C1] font-bold">●</span>
-                            <span><b>噴霧：</b>若含易燃成分不能手提也不能托運。</span>
-                        </li>
+                        <li class="flex gap-2"><span class="text-[#9D76C1]">●</span><span><b>液體：</b>手提不得超過 100ml，需裝入透明夾鏈袋 (總量不超過 1L)。</span></li>
+                        <li class="flex gap-2"><span class="text-[#9D76C1]">●</span><span><b>打火機：</b>一般打火機僅限 1 個可手提，其他嚴禁。</span></li>
+                        <li class="flex gap-2"><span class="text-[#9D76C1]">●</span><span><b>電池：</b>行動電源/鋰電池只能手提，<b>不可托運</b>。</span></li>
+                        <li class="flex gap-2"><span class="text-[#9D76C1]">●</span><span><b>噴霧：</b>若含易燃成分不能手提也不能托運。</span></li>
                     </ul>
                 </div>
             </section>
         </div>
 
-        <!-- 底部裝飾邊界 -->
         <div class="fixed bottom-0 left-0 right-0 h-4 kuromi-gradient z-[60]"></div>
     </div>
 
@@ -294,49 +261,29 @@
 
                 const packing = ref([
                     { category: '一、必備證件與財務 (隨身行李)', items: [
-                        {text: '護照 (6個月以上效期)', done: false},
-                        {text: '簽證/機票/訂位紀錄', done: false},
-                        {text: '身分證/駕照', done: false},
-                        {text: '旅遊保險文件/疫苗證明', done: false},
-                        {text: '信用卡/少量當地現金', done: false},
+                        {text: '護照 (6個月以上效期)', done: false}, {text: '簽證、機票/訂位紀錄', done: false},
+                        {text: '身分證、駕照、保險文件', done: false}, {text: '信用卡、當地現金', done: false},
                         {text: '緊急聯絡資訊', done: false}
                     ]},
                     { category: '二、衣物與配件', items: [
-                        {text: '日常衣物/內衣褲/睡衣/襪子', done: false},
-                        {text: '舒適好走的鞋/拖鞋', done: false},
-                        {text: '帽子/太陽眼鏡/圍巾/手套', done: false},
-                        {text: '特殊需求 (泳衣/運動服)', done: false}
+                        {text: '日常衣物/內衣褲/睡衣/襪子', done: false}, {text: '舒適鞋子/拖鞋', done: false},
+                        {text: '帽子/太陽眼鏡/圍巾/手套', done: false}, {text: '特殊需求 (泳衣/運動服)', done: false}
                     ]},
                     { category: '三、盥洗與保養品', items: [
-                        {text: '牙刷/牙膏/梳子', done: false},
-                        {text: '洗面乳/沐浴乳/洗髮精 (旅行裝)', done: false},
-                        {text: '化妝水/乳液/防曬乳/卸妝', done: false},
-                        {text: '護唇膏/面膜', done: false},
-                        {text: '衛生紙/濕紙巾/生理用品', done: false}
+                        {text: '牙刷牙膏/梳子/洗面乳', done: false}, {text: '旅行裝沐浴乳/洗髮精', done: false},
+                        {text: '保養品 (乳液/防曬/卸妝)', done: false}, {text: '衛生紙/濕紙巾/生理用品', done: false}
                     ]},
                     { category: '四、3C產品 & 電子用品', items: [
-                        {text: '手機/充電器/充電線/耳機', done: false},
-                        {text: '行動電源 (不可托運)', done: false},
-                        {text: '萬用插頭/轉接頭', done: false},
-                        {text: 'Wi-Fi 分享器/網卡', done: false},
-                        {text: '相機/筆電', done: false}
+                        {text: '手機/充電器/充電線/耳機', done: false}, {text: '行動電源 (不可托運)', done: false},
+                        {text: '萬用插頭/網卡/WiFi機', done: false}, {text: '相機/筆電', done: false}
                     ]},
                     { category: '五、藥品與保健品', items: [
-                        {text: '感冒藥/止痛藥/腸胃藥', done: false},
-                        {text: '過敏藥/暈車機藥', done: false},
-                        {text: '蚊蟲藥/防蚊液/OK繃', done: false},
-                        {text: '個人處方藥/口罩', done: false}
+                        {text: '感冒/止痛/腸胃/過敏藥', done: false}, {text: '個人處方藥/蚊蟲藥', done: false},
+                        {text: 'Ruby 常備藥/口罩', done: false}, {text: 'OK繃/防蚊液', done: false}
                     ]},
                     { category: '六、其他雜物', items: [
-                        {text: '水瓶/雨傘/筆/小環保袋', done: false},
-                        {text: '行李秤/旅行頸枕/眼罩/耳塞', done: false},
+                        {text: '水瓶/雨傘/筆/環保袋', done: false}, {text: '行李秤/頸枕/眼罩/耳塞', done: false},
                         {text: '行李束帶/行李鎖 (托運)', done: false}
-                    ]},
-                    { category: 'Ruby 寶貝專區 (Skyscanner 推薦)', items: [
-                        {text: '奶粉/副食品/餐具', done: false},
-                        {text: '足量尿布/濕紙巾', done: false},
-                        {text: '輕便推車/背帶', done: false},
-                        {text: 'Ruby 常備退燒藥', done: false}
                     ]}
                 ]);
 
