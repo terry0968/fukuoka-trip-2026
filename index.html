@@ -236,6 +236,7 @@
                     </div>
                 </div>
 
+                <!-- 雙向自動換算金額欄位 -->
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="text-[10px] text-slate-400 font-bold ml-1">金額 (日幣 ¥)</label>
@@ -257,8 +258,9 @@
                     <button v-if="isEditing" @click="cancelEdit" class="px-6 bg-slate-100 text-slate-400 rounded-[30px] font-bold text-sm shadow-sm active:scale-90 transition">取消</button>
                 </div>
                 
+                <!-- 偵測狀態 -->
                 <p v-if="!isUrlConfigured" class="text-[9px] text-red-400 font-bold text-center mt-2 animate-pulse">
-                    ⚠️ 偵測到雲端網址尚未正確設定，請更換代碼第 231 行。
+                    ⚠️ 偵測到雲端網址尚未正確設定，請更換代碼第 237 行。
                 </p>
             </div>
             
@@ -273,7 +275,7 @@
                     </button>
                 </div>
 
-                <div v-if="expenseSyncing" class="py-10 text-center text-slate-300 italic">
+                <div v-if="expenseSyncing && expenses.length === 0" class="py-10 text-center text-slate-300 italic">
                     <p class="text-xs animate-pulse">正在從試算表讀取歷史資料...</p>
                 </div>
 
@@ -346,7 +348,7 @@
         const { createApp, ref, computed, onMounted, nextTick } = Vue;
         createApp({
             setup() {
-                // --- ⚠️ 核心網址：已更新為您提供的連結 ---
+                // --- ⚠️ 雲端參數設定 ---
                 const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxUaoB_wXAYkZh3cW0S5HB_41Gw4wYI-mBkMjIYWOThVRgS-4e8bmWOTclAwLUkOUY/exec"; 
                 
                 const SHEET_ID = '19REJaflyB3ipjTvvQABcAMe95wjiBKwQNf7eH8J97N8';
@@ -500,7 +502,7 @@
                             body: JSON.stringify(dataToSave)
                         });
 
-                        toastMsg.value = isEditing.value ? "資料已修改！" : "支出已存檔！";
+                        toastMsg.value = isEditing.value ? "資料已成功修改！" : "支出已存檔！";
                         showToast.value = true;
                         setTimeout(() => showToast.value = false, 3000);
 
@@ -586,7 +588,15 @@
                     lucide.createIcons();
                 });
 
-                return { activeTab, selectedDay, fxInput, members, expenses, newExpense, itinerary, packing, weather, syncStatus, exchangeRate, fxDate, addExpense, openExternal, fetchItineraryFromSheet, convertCurrency, fetchExchangeRate, isSaving, isEditing, showToast, toastMsg, expenseSyncing, fetchExpensesFromSheet, handleWeatherClick, editItem, cancelEdit, isUrlConfigured };
+                return { 
+                    activeTab, selectedDay, fxInput, members, expenses, 
+                    newExpense, itinerary, packing, weather, syncStatus, 
+                    exchangeRate, fxDate, addExpense, openExternal, 
+                    fetchItineraryFromSheet, convertCurrency, fetchExchangeRate, 
+                    isSaving, isEditing, showToast, toastMsg, 
+                    expenseSyncing, fetchExpensesFromSheet, handleWeatherClick, 
+                    editItem, cancelEdit, isUrlConfigured 
+                };
             }
         }).mount('#app');
     </script>
