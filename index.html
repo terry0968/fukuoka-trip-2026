@@ -341,6 +341,7 @@
         const { createApp, ref, computed, onMounted, nextTick } = Vue;
         createApp({
             setup() {
+                // --- ⚠️ 修正重點：更換正確網址 (加上了漏掉的 x) ---
                 const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxUaoB_wXAYkZh3cW0S5HB_41Gw4wYI-mBkMjIYWOThVRgS-4e8bmWOTclAwLUkOUY/exec"; 
                 
                 const SHEET_ID = '19REJaflyB3ipjTvvQABcAMe95wjiBKwQNf7eH8J97N8';
@@ -459,7 +460,7 @@
 
                     const dataToSave = { ...newExpense.value };
 
-                    // 1. 立即更新畫面
+                    // 1. 立即更新畫面 (立即顯示，解決同步延遲感)
                     if (isEditing.value && editingIdx.value !== -1) {
                         expenses.value[editingIdx.value] = { ...dataToSave };
                     } else {
@@ -467,7 +468,7 @@
                     }
 
                     try {
-                        // 2. 傳送到雲端 (使用 text/plain 避免 CORS 預檢)
+                        // 2. 傳送到雲端 (使用 text/plain 避免 CORS 預檢攔截)
                         await fetch(GAS_WEB_APP_URL, {
                             method: "POST",
                             mode: "no-cors",
@@ -475,13 +476,16 @@
                             body: JSON.stringify(dataToSave)
                         });
 
-                        toastMsg.value = isEditing.value ? "資料已修改！" : "支出已儲存！";
+                        toastMsg.value = isEditing.value ? "資料已成功修改！" : "支出已成功紀錄！";
                         showToast.value = true;
                         setTimeout(() => showToast.value = false, 3000);
 
                         const savedPayer = newExpense.value.payer;
                         cancelEdit();
                         newExpense.value.payer = savedPayer;
+
+                        // 3. 過幾秒後背景重新載入，確保跟雲端 ID 吻合
+                        setTimeout(fetchExpensesFromSheet, 5000);
 
                     } catch (err) {
                         console.error("Sync Error:", err);
@@ -501,14 +505,22 @@
                         const response = await fetch(url);
                         const csvText = await response.text();
                         const rows = parseCSV(csvText);
-                        const newItinerary = [{ date: '5/30', dayName: 'SAT', plans: [] }, { date: '5/31', dayName: 'SUN', plans: [] }, { date: '6/01', dayName: 'MON', plans: [] }, { date: '6/02', dayName: 'TUE', plans: [] }, { date: '6/03', dayName: 'WED', plans: [] }, { date: '6/04', dayName: 'THU', plans: [] }, { date: '6/05', dayName: 'FRI', plans: [] }, { date: '6/06', dayName: 'SAT', plans: [] }];
+                        const newItinerary = [
+                            { date: '5/30', dayName: 'SAT', plans: [] }, { date: '5/31', dayName: 'SUN', plans: [] },
+                            { date: '6/01', dayName: 'MON', plans: [] }, { date: '6/02', dayName: 'TUE', plans: [] },
+                            { date: '6/03', dayName: 'WED', plans: [] }, { date: '6/04', dayName: 'THU', plans: [] },
+                            { date: '6/05', dayName: 'FRI', plans: [] }, { date: '6/06', dayName: 'SAT', plans: [] }
+                        ];
                         rows.forEach((row, idx) => {
                             if (idx === 0 || row.length < 3) return;
                             const rawDateStr = row[0];
                             const dateMatch = rawDateStr.match(/(\d+)\/(\d+)/);
                             if (dateMatch) {
                                 const m = parseInt(dateMatch[1]), d = parseInt(dateMatch[2]);
-                                const dayIndex = newItinerary.findIndex(day => { const parts = day.date.split('/'); return parseInt(parts[0]) === m && parseInt(parts[1]) === d; });
+                                const dayIndex = newItinerary.findIndex(day => { 
+                                    const parts = day.date.split('/'); 
+                                    return parseInt(parts[0]) === m && parseInt(parts[1]) === d; 
+                                });
                                 if (dayIndex !== -1) newItinerary[dayIndex].plans.push({ time: row[1] || '--:--', title: row[2] });
                             }
                         });
