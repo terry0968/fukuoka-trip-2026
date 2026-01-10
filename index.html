@@ -279,7 +279,7 @@
                     </button>
                 </div>
 
-                <div v-if="expenseSyncing && expenses.length === 0" class="py-10 text-center text-slate-300 italic">
+                <div v-if="expenseSyncing" class="py-10 text-center text-slate-300 italic">
                     <p class="text-xs animate-pulse">正在從試算表讀取歷史資料...</p>
                 </div>
 
@@ -392,9 +392,9 @@
 
                 const itinerary = ref([
                     { date: '5/30', dayName: 'SAT', plans: [] }, { date: '5/31', dayName: 'SUN', plans: [] },
-                    { date: '6/01', dayName: 'MON', plans: [] }, { date: '6/02', dayName: 'TUE', plans: [] },
-                    { date: '6/03', dayName: 'WED', plans: [] }, { date: '6/04', dayName: 'THU', plans: [] },
-                    { date: '6/05', dayName: 'FRI', plans: [] }, { date: '6/06', dayName: 'SAT', plans: [] }
+                    { date: '6/1', dayName: 'MON', plans: [] }, { date: '6/2', dayName: 'TUE', plans: [] },
+                    { date: '6/3', dayName: 'WED', plans: [] }, { date: '6/4', dayName: 'THU', plans: [] },
+                    { date: '6/5', dayName: 'FRI', plans: [] }, { date: '6/6', dayName: 'SAT', plans: [] }
                 ]);
 
                 const packing = ref([
@@ -494,7 +494,7 @@
                     finally { isSaving.value = false; await nextTick(); lucide.createIcons(); }
                 };
 
-                // --- 核心更新：縱向時間、橫向日期解析 ---
+                // --- 核心更新：根據您的橫向佈局 (B=5/30, C=5/31, D=6/1...) 重新編寫解析邏輯 ---
                 const fetchItineraryFromSheet = async () => {
                     syncStatus.value = 'loading';
                     const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${ITINERARY_GID}&t=${Date.now()}`;
@@ -503,46 +503,48 @@
                         const csvText = await response.text();
                         const rows = parseCSV(csvText);
                         
+                        // 定義本地行程結構 (8天)
                         const newItinerary = [
                             { date: '5/30', dayName: 'SAT', plans: [] }, { date: '5/31', dayName: 'SUN', plans: [] },
-                            { date: '6/01', dayName: 'MON', plans: [] }, { date: '6/02', dayName: 'TUE', plans: [] },
-                            { date: '6/03', dayName: 'WED', plans: [] }, { date: '6/04', dayName: 'THU', plans: [] },
-                            { date: '6/05', dayName: 'FRI', plans: [] }, { date: '6/06', dayName: 'SAT', plans: [] }
+                            { date: '6/1', dayName: 'MON', plans: [] }, { date: '6/2', dayName: 'TUE', plans: [] },
+                            { date: '6/3', dayName: 'WED', plans: [] }, { date: '6/4', dayName: 'THU', plans: [] },
+                            { date: '6/5', dayName: 'FRI', plans: [] }, { date: '6/6', dayName: 'SAT', plans: [] }
                         ];
 
                         if (rows.length < 1) return;
                         
-                        const headers = rows[0]; // 第一列是日期 (5/30, 5/31...)
+                        const headers = rows[0]; // 第一列 (時間, 5/30, 5/31, 6/1, 6/2, 6/3, 6/4, 6/5, 6/6)
                         let count = 0;
 
-                        // 遍歷所有資料列 (每一行是一個時間點)
+                        // 遍歷所有列 (Row)
                         for (let i = 1; i < rows.length; i++) {
                             const row = rows[i];
-                            const timeStr = row[0]; // A 欄是時間
-                            
-                            // 遍歷 B 欄以後的每一欄 (每一天)
-                            for (let j = 1; j < row.length; j++) {
-                                const planTitle = row[j];
-                                if (!planTitle || planTitle.trim() === "") continue;
+                            const timeStr = row[0]; // A 欄：時間
+                            if (!timeStr) continue;
 
-                                const headerText = headers[j]; // 該欄位對應的日期
+                            // 遍歷 B 到 I 欄 (Column 1 到 8)
+                            for (let j = 1; j < row.length; j++) {
+                                const planContent = row[j];
+                                if (!planContent || planContent.trim() === "") continue;
+
+                                const headerText = headers[j]; // 該欄位對應的日期標題
                                 if (!headerText) continue;
 
-                                // 解析日期 (例如從 2026/05/30 或 5/30 抓出 5 和 30)
+                                // 智慧比對標題中的月份與日期
                                 const dateMatch = headerText.match(/(\d{1,2})[\/\-月\.](\d{1,2})/);
                                 if (dateMatch) {
                                     const m = parseInt(dateMatch[1]);
                                     const d = parseInt(dateMatch[2]);
 
                                     const dayIndex = newItinerary.findIndex(day => {
-                                        const p = day.date.split('/');
-                                        return parseInt(p[0]) === m && parseInt(p[1]) === d;
+                                        const parts = day.date.split('/');
+                                        return parseInt(parts[0]) === m && parseInt(parts[1]) === d;
                                     });
 
                                     if (dayIndex !== -1) {
                                         newItinerary[dayIndex].plans.push({
-                                            time: timeStr || '--:--',
-                                            title: planTitle
+                                            time: timeStr.trim(),
+                                            title: planContent.trim()
                                         });
                                         count++;
                                     }
@@ -550,16 +552,24 @@
                             }
                         }
 
-                        // 針對每一天的行程，依照時間進行排序 (確保顯示順序正確)
+                        // 針對每一天的計畫依時間排序
                         newItinerary.forEach(day => {
-                            day.plans.sort((a, b) => a.time.localeCompare(b.time));
+                            day.plans.sort((a, b) => {
+                                // 簡單的正則提取數字進行排序 (09:00 vs 10:00)
+                                const timeA = a.time.replace(/\D/g, '').padEnd(4, '0');
+                                const timeB = b.time.replace(/\D/g, '').padEnd(4, '0');
+                                return timeA.localeCompare(timeB);
+                            });
                         });
                         
                         itinerary.value = newItinerary;
                         syncCount.value = count;
                         syncStatus.value = 'success';
                         setTimeout(() => syncStatus.value = 'idle', 3000);
-                    } catch (e) { syncStatus.value = 'error'; }
+                    } catch (e) { 
+                        console.error("行程同步失敗", e);
+                        syncStatus.value = 'error'; 
+                    }
                     await nextTick();
                     lucide.createIcons();
                 };
@@ -590,15 +600,21 @@
                 const handleWeatherClick = () => openExternal('https://tenki.jp/forecast/9/43/8210/40130/');
 
                 onMounted(() => { 
-                    fetchItineraryFromSheet(); fetchExpensesFromSheet(); fetchWeather(); fetchExchangeRate(); lucide.createIcons();
+                    fetchItineraryFromSheet(); 
+                    fetchExpensesFromSheet();
+                    fetchWeather(); 
+                    fetchExchangeRate(); 
+                    lucide.createIcons();
                 });
 
                 return { 
-                    activeTab, selectedDay, fxInput, members, expenses, newExpense, itinerary, packing, weather, 
-                    syncStatus, exchangeRate, fxDate, addExpense, openExternal, fetchItineraryFromSheet, 
-                    convertCurrency, fetchExchangeRate, isSaving, isEditing, showToast, toastMsg, 
-                    expenseSyncing, fetchExpensesFromSheet, handleWeatherClick, editItem, cancelEdit, 
-                    isUrlConfigured, syncCount 
+                    activeTab, selectedDay, fxInput, members, expenses, 
+                    newExpense, itinerary, packing, weather, syncStatus, 
+                    exchangeRate, fxDate, addExpense, openExternal, 
+                    fetchItineraryFromSheet, convertCurrency, fetchExchangeRate, 
+                    isSaving, isEditing, showToast, toastMsg, 
+                    expenseSyncing, fetchExpensesFromSheet, handleWeatherClick, 
+                    editItem, cancelEdit, isUrlConfigured, syncCount 
                 };
             }
         }).mount('#app');
