@@ -99,7 +99,6 @@
                     </div>
                 </div>
                 
-                <!-- 天氣區塊 -->
                 <div @click="handleWeatherClick"
                      :class="['bg-black/40 p-4 rounded-[40px] backdrop-blur-xl text-center border border-white/20 min-w-[120px] float-anim cursor-pointer hover:bg-black/60 active:scale-95 transition-all shadow-lg', weather.status === 'loading' ? 'loading-shimmer' : '']">
                     
@@ -188,9 +187,8 @@
             </main>
         </div>
 
-        <!-- 2. 錢包管家 (記帳分頁) -->
+        <!-- 2. 錢包管家 -->
         <div v-if="activeTab === 'expense'" class="p-6 space-y-8">
-            <!-- 匯率工具 -->
             <div class="kuromi-card bg-[#2D2727] text-white p-8 shadow-2xl border-none">
                 <div class="flex justify-between items-start mb-4">
                     <div>
@@ -274,7 +272,7 @@
                     <p class="text-xs animate-pulse">正在從試算表讀取歷史資料...</p>
                 </div>
 
-                <div v-else v-for="(ex, idx) in expenses" :key="idx" class="kuromi-card p-6 flex justify-between items-center shadow-md border-l-[12px] border-[#9D76C1]">
+                <div v-else v-for="(ex, idx) in expenses" :key="ex.id" class="kuromi-card p-6 flex justify-between items-center shadow-md border-l-[12px] border-[#9D76C1]">
                     <div class="flex-1">
                         <div class="flex items-center gap-2 mb-1">
                             <span class="text-[10px] font-bold text-white bg-slate-800 px-2 py-0.5 rounded">{{ex.date}}</span>
@@ -343,7 +341,6 @@
         const { createApp, ref, computed, onMounted, nextTick } = Vue;
         createApp({
             setup() {
-                // --- ⚠️ 專屬雲端網址：已根據您的網址更新 ---
                 const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxUaoB_wXAYkZh3cW0S5HB_41Gw4wYI-mBkMjIYWOThVRgS-4e8bmWOTclAwLUkOUY/exec"; 
                 
                 const SHEET_ID = '19REJaflyB3ipjTvvQABcAMe95wjiBKwQNf7eH8J97N8';
@@ -366,28 +363,13 @@
                 const syncStatus = ref('idle');
                 
                 const newExpense = ref({ 
+                    id: null,
                     date: new Date().toISOString().split('T')[0], 
                     item: '', 
                     amount: null, 
                     amountTwd: null, 
                     payer: 'KCY' 
                 });
-
-                const weather = ref({ temp: '--', icon: 'thermometer', desc: 'Syncing', status: 'loading' });
-
-                const itinerary = ref([
-                    { date: '5/30', dayName: 'SAT', plans: [] }, { date: '5/31', dayName: 'SUN', plans: [] },
-                    { date: '6/01', dayName: 'MON', plans: [] }, { date: '6/02', dayName: 'TUE', plans: [] },
-                    { date: '6/03', dayName: 'WED', plans: [] }, { date: '6/04', dayName: 'THU', plans: [] },
-                    { date: '6/05', dayName: 'FRI', plans: [] }, { date: '6/06', dayName: 'SAT', plans: [] }
-                ]);
-
-                const packing = ref([
-                    { category: '一、必備證件與財務', items: [{text: '護照 (效期6月以上)', done: false}, {text: '機票/訂位紀錄', done: false}, {text: '信用卡/日幣現金', done: false}] },
-                    { category: '二、衣物配件', items: [{text: '內衣褲/襪子/睡衣', done: false}, {text: '舒適好走的鞋/拖鞋', done: false}] },
-                    { category: '三、盥洗保養', items: [{text: '牙刷牙膏/洗面乳', done: false}, {text: '分裝保養品/生理用品', done: false}] },
-                    { category: '四、3C用品', items: [{text: '手機/充電器/充電線', done: false}, {text: '行動電源 (必手提)', done: false}] }
-                ]);
 
                 const fetchExchangeRate = async () => {
                     try {
@@ -436,7 +418,8 @@
                                 payer: row[1],
                                 item: row[2],
                                 amount: parseInt(row[3]) || 0,
-                                amountTwd: parseInt(row[4]) || 0
+                                amountTwd: parseInt(row[4]) || 0,
+                                id: row[5] || 'legacy-' + idx // 讀取第 6 欄作為 ID
                             });
                         });
                         expenses.value = cloudExpenses;
@@ -459,6 +442,7 @@
                     isEditing.value = false;
                     editingIdx.value = -1;
                     newExpense.value = { 
+                        id: null,
                         date: new Date().toISOString().split('T')[0], 
                         item: '', amount: null, amountTwd: null, payer: 'KCY' 
                     };
@@ -467,9 +451,15 @@
                 const addExpense = async () => {
                     if (!newExpense.value.item || !newExpense.value.amount) return;
                     isSaving.value = true;
+                    
+                    // 如果不是編輯模式，產生一個新的唯一 ID (時間戳記)
+                    if (!isEditing.value) {
+                        newExpense.value.id = Date.now().toString();
+                    }
+
                     const dataToSave = { ...newExpense.value };
 
-                    // 1. 立即更新畫面 (提升使用者體驗)
+                    // 1. 立即更新畫面
                     if (isEditing.value && editingIdx.value !== -1) {
                         expenses.value[editingIdx.value] = { ...dataToSave };
                     } else {
@@ -477,8 +467,7 @@
                     }
 
                     try {
-                        // 2. 傳送到雲端
-                        // 關鍵修正：將 Content-Type 設為 text/plain 以避免 CORS 預檢攔截
+                        // 2. 傳送到雲端 (使用 text/plain 避免 CORS 預檢)
                         await fetch(GAS_WEB_APP_URL, {
                             method: "POST",
                             mode: "no-cors",
@@ -490,7 +479,6 @@
                         showToast.value = true;
                         setTimeout(() => showToast.value = false, 3000);
 
-                        // 3. 重置表單
                         const savedPayer = newExpense.value.payer;
                         cancelEdit();
                         newExpense.value.payer = savedPayer;
@@ -513,22 +501,14 @@
                         const response = await fetch(url);
                         const csvText = await response.text();
                         const rows = parseCSV(csvText);
-                        const newItinerary = [
-                            { date: '5/30', dayName: 'SAT', plans: [] }, { date: '5/31', dayName: 'SUN', plans: [] },
-                            { date: '6/01', dayName: 'MON', plans: [] }, { date: '6/02', dayName: 'TUE', plans: [] },
-                            { date: '6/03', dayName: 'WED', plans: [] }, { date: '6/04', dayName: 'THU', plans: [] },
-                            { date: '6/05', dayName: 'FRI', plans: [] }, { date: '6/06', dayName: 'SAT', plans: [] }
-                        ];
+                        const newItinerary = [{ date: '5/30', dayName: 'SAT', plans: [] }, { date: '5/31', dayName: 'SUN', plans: [] }, { date: '6/01', dayName: 'MON', plans: [] }, { date: '6/02', dayName: 'TUE', plans: [] }, { date: '6/03', dayName: 'WED', plans: [] }, { date: '6/04', dayName: 'THU', plans: [] }, { date: '6/05', dayName: 'FRI', plans: [] }, { date: '6/06', dayName: 'SAT', plans: [] }];
                         rows.forEach((row, idx) => {
                             if (idx === 0 || row.length < 3) return;
                             const rawDateStr = row[0];
                             const dateMatch = rawDateStr.match(/(\d+)\/(\d+)/);
                             if (dateMatch) {
                                 const m = parseInt(dateMatch[1]), d = parseInt(dateMatch[2]);
-                                const dayIndex = newItinerary.findIndex(day => { 
-                                    const parts = day.date.split('/'); 
-                                    return parseInt(parts[0]) === m && parseInt(parts[1]) === d; 
-                                });
+                                const dayIndex = newItinerary.findIndex(day => { const parts = day.date.split('/'); return parseInt(parts[0]) === m && parseInt(parts[1]) === d; });
                                 if (dayIndex !== -1) newItinerary[dayIndex].plans.push({ time: row[1] || '--:--', title: row[2] });
                             }
                         });
