@@ -77,10 +77,12 @@
                     </div>
                 </div>
                 
-                <div class="bg-black/30 p-4 rounded-[35px] backdrop-blur-md text-center border border-white/20 min-w-[110px] float-anim">
+                <!-- 天氣區塊：點擊可跳轉至 JMA 氣象廳預報 -->
+                <div @click="openExternal('https://www.data.jma.go.jp/multi/yoho/yoho_detail.html?code=400010&lang=cn_zt')"
+                     class="bg-black/30 p-4 rounded-[35px] backdrop-blur-md text-center border border-white/20 min-w-[110px] float-anim cursor-pointer hover:bg-black/40 active:scale-95 transition-all">
                     <i data-lucide="cloud-sun" class="w-12 h-12 mx-auto mb-1 text-[#FF91C1]"></i>
                     <p class="text-3xl font-black">24°C</p>
-                    <p class="text-[10px] opacity-70 font-bold uppercase">Sunny day</p>
+                    <p class="text-[10px] opacity-70 font-bold uppercase tracking-tighter">JMA 氣象預報</p>
                 </div>
             </div>
         </header>
