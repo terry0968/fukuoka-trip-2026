@@ -99,6 +99,7 @@
                     </div>
                 </div>
                 
+                <!-- 天氣區塊 -->
                 <div @click="handleWeatherClick"
                      :class="['bg-black/40 p-4 rounded-[40px] backdrop-blur-xl text-center border border-white/20 min-w-[120px] float-anim cursor-pointer hover:bg-black/60 active:scale-95 transition-all shadow-lg', weather.status === 'loading' ? 'loading-shimmer' : '']">
                     
@@ -187,7 +188,7 @@
             </main>
         </div>
 
-        <!-- 2. 錢包管家 -->
+        <!-- 2. 錢包管家 (記帳分頁) -->
         <div v-if="activeTab === 'expense'" class="p-6 space-y-8">
             <!-- 匯率工具 -->
             <div class="kuromi-card bg-[#2D2727] text-white p-8 shadow-2xl border-none">
@@ -342,7 +343,9 @@
         const { createApp, ref, computed, onMounted, nextTick } = Vue;
         createApp({
             setup() {
-                const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzL_3V6V_S0C_p1l2K8P9Q8R7T6S5D4F3G2H1J0/exec"; 
+                // --- ⚠️ 專屬雲端網址已更新 ---
+                const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxUaoB_wXAYkZh3cW0S5HB_41Gw4wYI-mBkMjIYWOThVRgS-4e8bmWOTclAwLUkOUY/exec"; 
+                
                 const SHEET_ID = '19REJaflyB3ipjTvvQABcAMe95wjiBKwQNf7eH8J97N8';
                 const ITINERARY_GID = '1691304811';
                 const EXPENSE_GID = '146729228';
@@ -370,7 +373,7 @@
                 });
 
                 const isUrlConfigured = computed(() => {
-                    return GAS_WEB_APP_URL.includes("script.google.com") && !GAS_WEB_APP_URL.includes("H1J0");
+                    return GAS_WEB_APP_URL.includes("script.google.com");
                 });
                 
                 const weather = ref({ temp: '--', icon: 'thermometer', desc: 'Syncing', status: 'loading' });
@@ -385,7 +388,8 @@
                 const packing = ref([
                     { category: '一、必備證件與財務', items: [{text: '護照 (效期6月以上)', done: false}, {text: '機票/訂位紀錄', done: false}, {text: '信用卡/日幣現金', done: false}] },
                     { category: '二、衣物配件', items: [{text: '內衣褲/襪子/睡衣', done: false}, {text: '舒適好走的鞋/拖鞋', done: false}] },
-                    { category: '三、盥洗保養', items: [{text: '牙刷牙膏/洗面乳', done: false}, {text: '分裝保養品/生理用品', done: false}] }
+                    { category: '三、盥洗保養', items: [{text: '牙刷牙膏/洗面乳', done: false}, {text: '分裝保養品/生理用品', done: false}] },
+                    { category: '四、3C用品', items: [{text: '手機/充電器/充電線', done: false}, {text: '行動電源 (必手提)', done: false}] }
                 ]);
 
                 const fetchExchangeRate = async () => {
@@ -466,6 +470,11 @@
                     isSaving.value = true;
                     const dataToSave = { ...newExpense.value };
 
+                    // 立即在本地顯示，解決同步延遲感
+                    if(!isEditing.value) {
+                        expenses.value.unshift({...dataToSave});
+                    }
+
                     try {
                         await fetch(GAS_WEB_APP_URL, {
                             method: "POST",
@@ -483,7 +492,8 @@
                         newExpense.value.amount = null; 
                         newExpense.value.amountTwd = null;
 
-                        setTimeout(fetchExpensesFromSheet, 2000);
+                        // 延遲刷新以確保雲端已完成處理
+                        setTimeout(fetchExpensesFromSheet, 3000);
                     } catch (err) {
                         console.error("Sync Error:", err);
                     } finally {
