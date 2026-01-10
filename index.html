@@ -62,9 +62,10 @@
 
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         
-        /* 成功提示動畫 */
         .toast-enter-active, .toast-leave-active { transition: all 0.5s ease; }
         .toast-enter-from, .toast-leave-to { opacity: 0; transform: translateY(-20px); }
+        
+        html { scroll-behavior: smooth; }
     </style>
 </head>
 <body>
@@ -75,7 +76,7 @@
             <div v-if="showToast" class="fixed top-20 left-1/2 -translate-x-1/2 z-[100] w-64 text-center">
                 <div class="bg-black/80 text-white p-4 rounded-[25px] flex items-center justify-center gap-3 backdrop-blur-md shadow-2xl border border-purple-400">
                     <i data-lucide="check-circle" class="text-green-400"></i>
-                    <p class="font-bold text-sm">資料已成功同步雲端！</p>
+                    <p class="font-bold text-sm">{{ toastMsg }}</p>
                 </div>
             </div>
         </transition>
@@ -98,7 +99,6 @@
                     </div>
                 </div>
                 
-                <!-- 天氣區塊 -->
                 <div @click="handleWeatherClick"
                      :class="['bg-black/40 p-4 rounded-[40px] backdrop-blur-xl text-center border border-white/20 min-w-[120px] float-anim cursor-pointer hover:bg-black/60 active:scale-95 transition-all shadow-lg', weather.status === 'loading' ? 'loading-shimmer' : '']">
                     
@@ -189,6 +189,7 @@
 
         <!-- 2. 錢包管家 -->
         <div v-if="activeTab === 'expense'" class="p-6 space-y-8">
+            <!-- 匯率工具 -->
             <div class="kuromi-card bg-[#2D2727] text-white p-8 shadow-2xl border-none">
                 <div class="flex justify-between items-start mb-4">
                     <div>
@@ -214,9 +215,11 @@
             </div>
 
             <!-- 新增支出表單 -->
-            <div class="kuromi-card p-8 space-y-6 shadow-xl border-2 border-purple-100">
+            <div id="expense-form" class="kuromi-card p-8 space-y-6 shadow-xl border-2 border-purple-100 relative">
                 <div class="flex justify-between items-center mb-2">
-                    <h3 class="font-bold text-slate-800 italic underline decoration-[#FF91C1]">新增一筆支出 💜</h3>
+                    <h3 class="font-bold text-slate-800 italic underline decoration-[#FF91C1]">
+                        {{ isEditing ? '正在編輯此紀錄 ✏️' : '新增一筆支出 💜' }}
+                    </h3>
                     <select v-model="newExpense.payer" class="bg-purple-50 rounded-2xl px-4 py-2 font-bold text-sm text-[#9D76C1] border-none outline-none shadow-inner">
                         <option v-for="m in members" :key="m">{{m}}</option>
                     </select>
@@ -244,12 +247,15 @@
                     </div>
                 </div>
 
-                <button @click="addExpense" 
-                        :disabled="isSaving"
-                        :class="['w-full kuromi-gradient text-white py-5 rounded-[30px] font-bold text-lg shadow-xl active:scale-95 transition-all flex items-center justify-center gap-3', isSaving ? 'opacity-50 grayscale cursor-not-allowed' : '']">
-                    <i v-if="isSaving" data-lucide="loader-2" class="animate-spin"></i>
-                    {{ isSaving ? '同步至試算表中...' : '紀錄支出並同步 💜' }}
-                </button>
+                <div class="flex gap-2">
+                    <button @click="addExpense" 
+                            :disabled="isSaving"
+                            :class="['flex-1 kuromi-gradient text-white py-5 rounded-[30px] font-bold text-lg shadow-xl active:scale-95 transition-all flex items-center justify-center gap-3', isSaving ? 'opacity-50 grayscale cursor-not-allowed' : '']">
+                        <i v-if="isSaving" data-lucide="loader-2" class="animate-spin"></i>
+                        {{ isSaving ? '同步中...' : (isEditing ? '儲存修改 💜' : '紀錄支出並同步 💜') }}
+                    </button>
+                    <button v-if="isEditing" @click="cancelEdit" class="px-6 bg-slate-100 text-slate-400 rounded-[30px] font-bold text-sm">取消</button>
+                </div>
             </div>
             
             <!-- 支出明細 -->
@@ -268,16 +274,21 @@
                 </div>
 
                 <div v-else v-for="(ex, idx) in expenses" :key="idx" class="kuromi-card p-6 flex justify-between items-center shadow-md border-l-[12px] border-[#9D76C1]">
-                    <div>
+                    <div class="flex-1">
                         <div class="flex items-center gap-2 mb-1">
                             <span class="text-[10px] font-bold text-white bg-slate-800 px-2 py-0.5 rounded">{{ex.date}}</span>
                             <span class="text-[10px] text-slate-400 font-bold uppercase">{{ex.payer}}</span>
                         </div>
                         <p class="text-lg font-bold text-slate-700 leading-tight">{{ex.item}}</p>
                     </div>
-                    <div class="text-right">
-                        <p class="text-xl font-bold text-slate-800">¥ {{ex.amount.toLocaleString()}}</p>
-                        <p class="text-xs font-bold text-[#FF91C1]">NT$ {{ex.amountTwd.toLocaleString()}}</p>
+                    <div class="text-right flex items-center gap-4">
+                        <div>
+                            <p class="text-xl font-bold text-slate-800">¥ {{ex.amount.toLocaleString()}}</p>
+                            <p class="text-xs font-bold text-[#FF91C1]">NT$ {{ex.amountTwd.toLocaleString()}}</p>
+                        </div>
+                        <button @click="editItem(ex)" class="p-3 bg-purple-50 text-purple-400 rounded-full active:scale-90 transition">
+                            <i data-lucide="pencil" class="w-4 h-4"></i>
+                        </button>
                     </div>
                 </div>
 
@@ -331,9 +342,7 @@
         const { createApp, ref, computed, onMounted, nextTick } = Vue;
         createApp({
             setup() {
-                // --- ⚠️ 已成功填入你的專屬 GAS 網址 ---
-                const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzUaoB_wXAYkZh3cW0S5HB_41Gw4wYI-mBkMjIYWOThVRgS-4e8bmWOTclAwLUkOUY/exec"; 
-                
+                const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzL_3V6V_S0C_p1l2K8P9Q8R7T6S5D4F3G2H1J0/exec"; 
                 const SHEET_ID = '19REJaflyB3ipjTvvQABcAMe95wjiBKwQNf7eH8J97N8';
                 const ITINERARY_GID = '1691304811';
                 const EXPENSE_GID = '146729228';
@@ -346,7 +355,9 @@
                 const exchangeRate = ref(0.210);
                 const fxDate = ref('Loading...');
                 const isSaving = ref(false);
+                const isEditing = ref(false);
                 const showToast = ref(false);
+                const toastMsg = ref('');
                 const expenseSyncing = ref(false);
                 const syncStatus = ref('idle');
                 
@@ -359,7 +370,7 @@
                 });
 
                 const isUrlConfigured = computed(() => {
-                    return GAS_WEB_APP_URL.includes("script.google.com");
+                    return GAS_WEB_APP_URL.includes("script.google.com") && !GAS_WEB_APP_URL.includes("H1J0");
                 });
                 
                 const weather = ref({ temp: '--', icon: 'thermometer', desc: 'Syncing', status: 'loading' });
@@ -374,8 +385,7 @@
                 const packing = ref([
                     { category: '一、必備證件與財務', items: [{text: '護照 (效期6月以上)', done: false}, {text: '機票/訂位紀錄', done: false}, {text: '信用卡/日幣現金', done: false}] },
                     { category: '二、衣物配件', items: [{text: '內衣褲/襪子/睡衣', done: false}, {text: '舒適好走的鞋/拖鞋', done: false}] },
-                    { category: '三、盥洗保養', items: [{text: '牙刷牙膏/洗面乳', done: false}, {text: '分裝保養品/生理用品', done: false}] },
-                    { category: '四、3C用品', items: [{text: '手機/充電器/充電線', done: false}, {text: '行動電源 (必手提)', done: false}] }
+                    { category: '三、盥洗保養', items: [{text: '牙刷牙膏/洗面乳', done: false}, {text: '分裝保養品/生理用品', done: false}] }
                 ]);
 
                 const fetchExchangeRate = async () => {
@@ -437,9 +447,22 @@
                     }
                 };
 
+                const editItem = (ex) => {
+                    newExpense.value = { ...ex };
+                    isEditing.value = true;
+                    document.getElementById('expense-form').scrollIntoView({ behavior: 'smooth' });
+                };
+
+                const cancelEdit = () => {
+                    isEditing.value = false;
+                    newExpense.value = { 
+                        date: new Date().toISOString().split('T')[0], 
+                        item: '', amount: null, amountTwd: null, payer: 'KCY' 
+                    };
+                };
+
                 const addExpense = async () => {
                     if (!newExpense.value.item || !newExpense.value.amount) return;
-                    
                     isSaving.value = true;
                     const dataToSave = { ...newExpense.value };
 
@@ -451,17 +474,18 @@
                             body: JSON.stringify(dataToSave)
                         });
 
+                        toastMsg.value = isEditing.value ? "修改已同步！" : "紀錄已成功！";
                         showToast.value = true;
                         setTimeout(() => showToast.value = false, 3000);
 
+                        isEditing.value = false;
                         newExpense.value.item = ''; 
                         newExpense.value.amount = null; 
                         newExpense.value.amountTwd = null;
 
-                        // 延遲刷新以確保雲端已同步
                         setTimeout(fetchExpensesFromSheet, 2000);
                     } catch (err) {
-                        console.error("Cloud Sync Error:", err);
+                        console.error("Sync Error:", err);
                     } finally {
                         isSaving.value = false;
                     }
@@ -474,24 +498,14 @@
                         const response = await fetch(url);
                         const csvText = await response.text();
                         const rows = parseCSV(csvText);
-                        
-                        const newItinerary = [
-                            { date: '5/30', dayName: 'SAT', plans: [] }, { date: '5/31', dayName: 'SUN', plans: [] },
-                            { date: '6/01', dayName: 'MON', plans: [] }, { date: '6/02', dayName: 'TUE', plans: [] },
-                            { date: '6/03', dayName: 'WED', plans: [] }, { date: '6/04', dayName: 'THU', plans: [] },
-                            { date: '6/05', dayName: 'FRI', plans: [] }, { date: '6/06', dayName: 'SAT', plans: [] }
-                        ];
-
+                        const newItinerary = [{ date: '5/30', dayName: 'SAT', plans: [] }, { date: '5/31', dayName: 'SUN', plans: [] }, { date: '6/01', dayName: 'MON', plans: [] }, { date: '6/02', dayName: 'TUE', plans: [] }, { date: '6/03', dayName: 'WED', plans: [] }, { date: '6/04', dayName: 'THU', plans: [] }, { date: '6/05', dayName: 'FRI', plans: [] }, { date: '6/06', dayName: 'SAT', plans: [] }];
                         rows.forEach((row, idx) => {
                             if (idx === 0 || row.length < 3) return;
                             const rawDateStr = row[0];
                             const dateMatch = rawDateStr.match(/(\d+)\/(\d+)/);
                             if (dateMatch) {
                                 const m = parseInt(dateMatch[1]), d = parseInt(dateMatch[2]);
-                                const dayIndex = newItinerary.findIndex(day => { 
-                                    const parts = day.date.split('/'); 
-                                    return parseInt(parts[0]) === m && parseInt(parts[1]) === d; 
-                                });
+                                const dayIndex = newItinerary.findIndex(day => { const parts = day.date.split('/'); return parseInt(parts[0]) === m && parseInt(parts[1]) === d; });
                                 if (dayIndex !== -1) newItinerary[dayIndex].plans.push({ time: row[1] || '--:--', title: row[2] });
                             }
                         });
@@ -535,7 +549,7 @@
                     fetchExchangeRate(); 
                 });
 
-                return { activeTab, selectedDay, fxInput, members, expenses, newExpense, itinerary, packing, weather, syncStatus, exchangeRate, fxDate, addExpense, openExternal, fetchItineraryFromSheet, convertCurrency, fetchExchangeRate, isSaving, showToast, expenseSyncing, fetchExpensesFromSheet, handleWeatherClick, isUrlConfigured };
+                return { activeTab, selectedDay, fxInput, members, expenses, newExpense, itinerary, packing, weather, syncStatus, exchangeRate, fxDate, addExpense, openExternal, fetchItineraryFromSheet, convertCurrency, fetchExchangeRate, isSaving, isEditing, showToast, toastMsg, expenseSyncing, fetchExpensesFromSheet, handleWeatherClick, isUrlConfigured, editItem, cancelEdit };
             }
         }).mount('#app');
     </script>
