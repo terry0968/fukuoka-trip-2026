@@ -75,7 +75,7 @@
             <div v-if="showToast" class="fixed top-20 left-1/2 -translate-x-1/2 z-[100] w-64 text-center">
                 <div class="bg-black/80 text-white p-4 rounded-[25px] flex items-center justify-center gap-3 backdrop-blur-md shadow-2xl border border-purple-400">
                     <i data-lucide="check-circle" class="text-green-400"></i>
-                    <p class="font-bold text-sm">資料已儲存至雲端！</p>
+                    <p class="font-bold text-sm">資料已傳送至雲端！</p>
                 </div>
             </div>
         </transition>
@@ -187,7 +187,7 @@
             </main>
         </div>
 
-        <!-- 2. 錢包管家 -->
+        <!-- 2. 錢包管家 (記帳分頁) -->
         <div v-if="activeTab === 'expense'" class="p-6 space-y-8">
             <!-- 匯率工具 -->
             <div class="kuromi-card bg-[#2D2727] text-white p-8 shadow-2xl border-none">
@@ -251,14 +251,19 @@
                     <i v-if="isSaving" data-lucide="loader-2" class="animate-spin"></i>
                     {{ isSaving ? '同步至試算表中...' : '紀錄支出並同步 💜' }}
                 </button>
+                
+                <!-- 偵錯提示：僅在網址未設定時顯示 -->
+                <p v-if="!isUrlConfigured" class="text-[9px] text-red-400 font-bold text-center mt-2 animate-pulse">
+                    ⚠️ 偵測到雲端網址尚未正確設定，請檢查程式碼第 231 行。
+                </p>
             </div>
             
             <!-- 支出明細 -->
-            <div class="space-y-4">
+            <div class="space-y-4 pb-10">
                 <div class="flex justify-between items-center px-4">
                     <h3 class="font-black text-slate-800">雲端支出明細</h3>
                     <button @click="fetchExpensesFromSheet" class="text-[10px] text-purple-500 font-bold flex items-center gap-1 active:scale-90 transition">
-                        <i data-lucide="refresh-cw" :class="['w-3 h-3', expenseSyncing ? 'animate-spin' : '']"></i> 手動重新整理
+                        <i data-lucide="refresh-cw" :class="['w-3 h-3', expenseSyncing ? 'animate-spin' : '']"></i> 手動重整
                     </button>
                 </div>
 
@@ -327,12 +332,13 @@
     </div>
 
     <script>
-        const { createApp, ref, onMounted, nextTick } = Vue;
+        const { createApp, ref, computed, onMounted, nextTick } = Vue;
         createApp({
             setup() {
-                // --- ⚠️ 雲端參數設定區 ---
-                // 請在此填入您的 GAS 部署網址
+                // --- ⚠️ 核心網址設定 ---
+                // 請將下方網址換成您 Google 部署後取得的 Web App URL
                 const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzL_3V6V_S0C_p1l2K8P9Q8R7T6S5D4F3G2H1J0/exec"; 
+                
                 const SHEET_ID = '19REJaflyB3ipjTvvQABcAMe95wjiBKwQNf7eH8J97N8';
                 const ITINERARY_GID = '1691304811';
                 const EXPENSE_GID = '146729228';
@@ -355,6 +361,10 @@
                     amount: null, 
                     amountTwd: null, 
                     payer: 'KCY' 
+                });
+
+                const isUrlConfigured = computed(() => {
+                    return GAS_WEB_APP_URL.includes("script.google.com");
                 });
                 
                 const weather = ref({ temp: '--', icon: 'thermometer', desc: 'Syncing', status: 'loading' });
@@ -393,7 +403,6 @@
                     }
                 };
 
-                // 解析 CSV 資料 (支援引號內逗號)
                 const parseCSV = (text) => {
                     const rows = [];
                     const lines = text.split('\n');
@@ -404,7 +413,6 @@
                     return rows;
                 };
 
-                // 從試算表讀取支出列表
                 const fetchExpensesFromSheet = async () => {
                     expenseSyncing.value = true;
                     const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${EXPENSE_GID}&t=${Date.now()}`;
@@ -434,14 +442,18 @@
                     }
                 };
 
-                // 將支出寫入試算表
                 const addExpense = async () => {
                     if (!newExpense.value.item || !newExpense.value.amount) return;
+                    if (!isUrlConfigured.value) {
+                        console.error("GAS URL not configured");
+                        return;
+                    }
+                    
                     isSaving.value = true;
                     const dataToSave = { ...newExpense.value };
 
                     try {
-                        // 使用 POST 發送到 GAS
+                        // 使用 POST 同步至 GAS
                         await fetch(GAS_WEB_APP_URL, {
                             method: "POST",
                             mode: "no-cors",
@@ -456,7 +468,7 @@
                         newExpense.value.amount = null; 
                         newExpense.value.amountTwd = null;
 
-                        // 延遲刷新以確保雲端已更新
+                        // 同步後重新載入列表
                         setTimeout(fetchExpensesFromSheet, 2000);
                     } catch (err) {
                         console.error("Cloud Sync Error:", err);
@@ -465,7 +477,6 @@
                     }
                 };
 
-                // 抓取行程資料
                 const fetchItineraryFromSheet = async () => {
                     syncStatus.value = 'loading';
                     const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${ITINERARY_GID}&t=${Date.now()}`;
@@ -534,7 +545,7 @@
                     fetchExchangeRate(); 
                 });
 
-                return { activeTab, selectedDay, fxInput, members, expenses, newExpense, itinerary, packing, weather, syncStatus, exchangeRate, fxDate, addExpense, openExternal, fetchItineraryFromSheet, convertCurrency, fetchExchangeRate, isSaving, showToast, expenseSyncing, fetchExpensesFromSheet, handleWeatherClick };
+                return { activeTab, selectedDay, fxInput, members, expenses, newExpense, itinerary, packing, weather, syncStatus, exchangeRate, fxDate, addExpense, openExternal, fetchItineraryFromSheet, convertCurrency, fetchExchangeRate, isSaving, showToast, expenseSyncing, fetchExpensesFromSheet, handleWeatherClick, isUrlConfigured };
             }
         }).mount('#app');
     </script>
