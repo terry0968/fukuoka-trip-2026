@@ -287,7 +287,7 @@
                             <p class="text-xl font-bold text-slate-800">¥ {{ex.amount.toLocaleString()}}</p>
                             <p class="text-xs font-bold text-[#FF91C1]">NT$ {{ex.amountTwd.toLocaleString()}}</p>
                         </div>
-                        <button @click="editItem(ex)" class="p-3 bg-purple-50 text-purple-400 rounded-full active:scale-90 transition">
+                        <button @click="editItem(ex, idx)" class="p-3 bg-purple-50 text-purple-400 rounded-full active:scale-90 transition">
                             <i data-lucide="pencil" class="w-4 h-4"></i>
                         </button>
                     </div>
@@ -343,7 +343,7 @@
         const { createApp, ref, computed, onMounted, nextTick } = Vue;
         createApp({
             setup() {
-                // --- ⚠️ 專屬雲端網址已更新 ---
+                // --- ⚠️ 專屬雲端網址：已根據您的網址更新 ---
                 const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxUaoB_wXAYkZh3cW0S5HB_41Gw4wYI-mBkMjIYWOThVRgS-4e8bmWOTclAwLUkOUY/exec"; 
                 
                 const SHEET_ID = '19REJaflyB3ipjTvvQABcAMe95wjiBKwQNf7eH8J97N8';
@@ -359,6 +359,7 @@
                 const fxDate = ref('Loading...');
                 const isSaving = ref(false);
                 const isEditing = ref(false);
+                const editingIdx = ref(-1);
                 const showToast = ref(false);
                 const toastMsg = ref('');
                 const expenseSyncing = ref(false);
@@ -372,10 +373,6 @@
                     payer: 'KCY' 
                 });
 
-                const isUrlConfigured = computed(() => {
-                    return GAS_WEB_APP_URL.includes("script.google.com");
-                });
-                
                 const weather = ref({ temp: '--', icon: 'thermometer', desc: 'Syncing', status: 'loading' });
 
                 const itinerary = ref([
@@ -451,14 +448,16 @@
                     }
                 };
 
-                const editItem = (ex) => {
+                const editItem = (ex, idx) => {
                     newExpense.value = { ...ex };
                     isEditing.value = true;
+                    editingIdx.value = idx;
                     document.getElementById('expense-form').scrollIntoView({ behavior: 'smooth' });
                 };
 
                 const cancelEdit = () => {
                     isEditing.value = false;
+                    editingIdx.value = -1;
                     newExpense.value = { 
                         date: new Date().toISOString().split('T')[0], 
                         item: '', amount: null, amountTwd: null, payer: 'KCY' 
@@ -470,34 +469,40 @@
                     isSaving.value = true;
                     const dataToSave = { ...newExpense.value };
 
-                    // 立即在本地顯示，解決同步延遲感
-                    if(!isEditing.value) {
-                        expenses.value.unshift({...dataToSave});
+                    // 1. 立即更新畫面 (提升使用者體驗)
+                    if (isEditing.value && editingIdx.value !== -1) {
+                        expenses.value[editingIdx.value] = { ...dataToSave };
+                    } else {
+                        expenses.value.unshift({ ...dataToSave });
                     }
 
                     try {
+                        // 2. 傳送到雲端
+                        // 關鍵修正：將 Content-Type 設為 text/plain 以避免 CORS 預檢攔截
                         await fetch(GAS_WEB_APP_URL, {
                             method: "POST",
                             mode: "no-cors",
-                            headers: { "Content-Type": "application/json" },
+                            headers: { "Content-Type": "text/plain" },
                             body: JSON.stringify(dataToSave)
                         });
 
-                        toastMsg.value = isEditing.value ? "修改已同步！" : "紀錄已成功！";
+                        toastMsg.value = isEditing.value ? "資料已修改！" : "支出已儲存！";
                         showToast.value = true;
                         setTimeout(() => showToast.value = false, 3000);
 
-                        isEditing.value = false;
-                        newExpense.value.item = ''; 
-                        newExpense.value.amount = null; 
-                        newExpense.value.amountTwd = null;
+                        // 3. 重置表單
+                        const savedPayer = newExpense.value.payer;
+                        cancelEdit();
+                        newExpense.value.payer = savedPayer;
 
-                        // 延遲刷新以確保雲端已完成處理
-                        setTimeout(fetchExpensesFromSheet, 3000);
                     } catch (err) {
                         console.error("Sync Error:", err);
+                        toastMsg.value = "同步失敗，資料僅留存在手機中";
+                        showToast.value = true;
                     } finally {
                         isSaving.value = false;
+                        await nextTick();
+                        lucide.createIcons();
                     }
                 };
 
@@ -508,14 +513,22 @@
                         const response = await fetch(url);
                         const csvText = await response.text();
                         const rows = parseCSV(csvText);
-                        const newItinerary = [{ date: '5/30', dayName: 'SAT', plans: [] }, { date: '5/31', dayName: 'SUN', plans: [] }, { date: '6/01', dayName: 'MON', plans: [] }, { date: '6/02', dayName: 'TUE', plans: [] }, { date: '6/03', dayName: 'WED', plans: [] }, { date: '6/04', dayName: 'THU', plans: [] }, { date: '6/05', dayName: 'FRI', plans: [] }, { date: '6/06', dayName: 'SAT', plans: [] }];
+                        const newItinerary = [
+                            { date: '5/30', dayName: 'SAT', plans: [] }, { date: '5/31', dayName: 'SUN', plans: [] },
+                            { date: '6/01', dayName: 'MON', plans: [] }, { date: '6/02', dayName: 'TUE', plans: [] },
+                            { date: '6/03', dayName: 'WED', plans: [] }, { date: '6/04', dayName: 'THU', plans: [] },
+                            { date: '6/05', dayName: 'FRI', plans: [] }, { date: '6/06', dayName: 'SAT', plans: [] }
+                        ];
                         rows.forEach((row, idx) => {
                             if (idx === 0 || row.length < 3) return;
                             const rawDateStr = row[0];
                             const dateMatch = rawDateStr.match(/(\d+)\/(\d+)/);
                             if (dateMatch) {
                                 const m = parseInt(dateMatch[1]), d = parseInt(dateMatch[2]);
-                                const dayIndex = newItinerary.findIndex(day => { const parts = day.date.split('/'); return parseInt(parts[0]) === m && parseInt(parts[1]) === d; });
+                                const dayIndex = newItinerary.findIndex(day => { 
+                                    const parts = day.date.split('/'); 
+                                    return parseInt(parts[0]) === m && parseInt(parts[1]) === d; 
+                                });
                                 if (dayIndex !== -1) newItinerary[dayIndex].plans.push({ time: row[1] || '--:--', title: row[2] });
                             }
                         });
@@ -559,7 +572,7 @@
                     fetchExchangeRate(); 
                 });
 
-                return { activeTab, selectedDay, fxInput, members, expenses, newExpense, itinerary, packing, weather, syncStatus, exchangeRate, fxDate, addExpense, openExternal, fetchItineraryFromSheet, convertCurrency, fetchExchangeRate, isSaving, isEditing, showToast, toastMsg, expenseSyncing, fetchExpensesFromSheet, handleWeatherClick, isUrlConfigured, editItem, cancelEdit };
+                return { activeTab, selectedDay, fxInput, members, expenses, newExpense, itinerary, packing, weather, syncStatus, exchangeRate, fxDate, addExpense, openExternal, fetchItineraryFromSheet, convertCurrency, fetchExchangeRate, isSaving, isEditing, showToast, toastMsg, expenseSyncing, fetchExpensesFromSheet, handleWeatherClick, editItem, cancelEdit };
             }
         }).mount('#app');
     </script>
