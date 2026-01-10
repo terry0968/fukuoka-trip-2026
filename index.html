@@ -187,8 +187,9 @@
             </main>
         </div>
 
-        <!-- 2. 錢包管家 -->
+        <!-- 2. 錢包管家 (記帳分頁) -->
         <div v-if="activeTab === 'expense'" class="p-6 space-y-8">
+            <!-- 匯率工具 -->
             <div class="kuromi-card bg-[#2D2727] text-white p-8 shadow-2xl border-none">
                 <div class="flex justify-between items-start mb-4">
                     <div>
@@ -255,6 +256,11 @@
                     </button>
                     <button v-if="isEditing" @click="cancelEdit" class="px-6 bg-slate-100 text-slate-400 rounded-[30px] font-bold text-sm">取消</button>
                 </div>
+
+                <!-- 錯誤偵測指引 -->
+                <p v-if="!isUrlConfigured" class="text-[9px] text-red-400 font-bold text-center mt-2 animate-pulse">
+                    ⚠️ 偵測到雲端網址尚未正確設定，請更換代碼第 237 行。
+                </p>
             </div>
             
             <!-- 支出明細 -->
@@ -341,7 +347,7 @@
         const { createApp, ref, computed, onMounted, nextTick } = Vue;
         createApp({
             setup() {
-                // --- ⚠️ 修正重點：更換正確網址 (加上了漏掉的 x) ---
+                // --- ⚠️ 核心網址更新 (已修正漏字) ---
                 const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxUaoB_wXAYkZh3cW0S5HB_41Gw4wYI-mBkMjIYWOThVRgS-4e8bmWOTclAwLUkOUY/exec"; 
                 
                 const SHEET_ID = '19REJaflyB3ipjTvvQABcAMe95wjiBKwQNf7eH8J97N8';
@@ -371,6 +377,26 @@
                     amountTwd: null, 
                     payer: 'KCY' 
                 });
+
+                const isUrlConfigured = computed(() => {
+                    return GAS_WEB_APP_URL.includes("script.google.com");
+                });
+                
+                const weather = ref({ temp: '--', icon: 'thermometer', desc: 'Syncing', status: 'loading' });
+
+                const itinerary = ref([
+                    { date: '5/30', dayName: 'SAT', plans: [] }, { date: '5/31', dayName: 'SUN', plans: [] },
+                    { date: '6/01', dayName: 'MON', plans: [] }, { date: '6/02', dayName: 'TUE', plans: [] },
+                    { date: '6/03', dayName: 'WED', plans: [] }, { date: '6/04', dayName: 'THU', plans: [] },
+                    { date: '6/05', dayName: 'FRI', plans: [] }, { date: '6/06', dayName: 'SAT', plans: [] }
+                ]);
+
+                const packing = ref([
+                    { category: '一、必備證件與財務', items: [{text: '護照 (效期6月以上)', done: false}, {text: '機票/訂位紀錄', done: false}, {text: '信用卡/日幣現金', done: false}] },
+                    { category: '二、衣物配件', items: [{text: '內衣褲/襪子/睡衣', done: false}, {text: '舒適好走的鞋/拖鞋', done: false}] },
+                    { category: '三、盥洗保養', items: [{text: '牙刷牙膏/洗面乳', done: false}, {text: '分裝保養品/生理用品', done: false}] },
+                    { category: '四、3C用品', items: [{text: '手機/充電器/充電線', done: false}, {text: '行動電源 (必手提)', done: false}] }
+                ]);
 
                 const fetchExchangeRate = async () => {
                     try {
@@ -420,7 +446,7 @@
                                 item: row[2],
                                 amount: parseInt(row[3]) || 0,
                                 amountTwd: parseInt(row[4]) || 0,
-                                id: row[5] || 'legacy-' + idx // 讀取第 6 欄作為 ID
+                                id: row[5] || 'legacy-' + idx
                             });
                         });
                         expenses.value = cloudExpenses;
@@ -452,15 +478,10 @@
                 const addExpense = async () => {
                     if (!newExpense.value.item || !newExpense.value.amount) return;
                     isSaving.value = true;
-                    
-                    // 如果不是編輯模式，產生一個新的唯一 ID (時間戳記)
-                    if (!isEditing.value) {
-                        newExpense.value.id = Date.now().toString();
-                    }
+                    if (!isEditing.value) { newExpense.value.id = Date.now().toString(); }
 
                     const dataToSave = { ...newExpense.value };
 
-                    // 1. 立即更新畫面 (立即顯示，解決同步延遲感)
                     if (isEditing.value && editingIdx.value !== -1) {
                         expenses.value[editingIdx.value] = { ...dataToSave };
                     } else {
@@ -468,7 +489,6 @@
                     }
 
                     try {
-                        // 2. 傳送到雲端 (使用 text/plain 避免 CORS 預檢攔截)
                         await fetch(GAS_WEB_APP_URL, {
                             method: "POST",
                             mode: "no-cors",
@@ -483,10 +503,7 @@
                         const savedPayer = newExpense.value.payer;
                         cancelEdit();
                         newExpense.value.payer = savedPayer;
-
-                        // 3. 過幾秒後背景重新載入，確保跟雲端 ID 吻合
                         setTimeout(fetchExpensesFromSheet, 5000);
-
                     } catch (err) {
                         console.error("Sync Error:", err);
                         toastMsg.value = "同步失敗，資料僅留存在手機中";
@@ -513,8 +530,7 @@
                         ];
                         rows.forEach((row, idx) => {
                             if (idx === 0 || row.length < 3) return;
-                            const rawDateStr = row[0];
-                            const dateMatch = rawDateStr.match(/(\d+)\/(\d+)/);
+                            const dateMatch = row[0].match(/(\d+)\/(\d+)/);
                             if (dateMatch) {
                                 const m = parseInt(dateMatch[1]), d = parseInt(dateMatch[2]);
                                 const dayIndex = newItinerary.findIndex(day => { 
@@ -562,9 +578,11 @@
                     fetchExpensesFromSheet();
                     fetchWeather(); 
                     fetchExchangeRate(); 
+                    // 確保一開始就載入圖示
+                    lucide.createIcons();
                 });
 
-                return { activeTab, selectedDay, fxInput, members, expenses, newExpense, itinerary, packing, weather, syncStatus, exchangeRate, fxDate, addExpense, openExternal, fetchItineraryFromSheet, convertCurrency, fetchExchangeRate, isSaving, isEditing, showToast, toastMsg, expenseSyncing, fetchExpensesFromSheet, handleWeatherClick, editItem, cancelEdit };
+                return { activeTab, selectedDay, fxInput, members, expenses, newExpense, itinerary, packing, weather, syncStatus, exchangeRate, fxDate, addExpense, openExternal, fetchItineraryFromSheet, convertCurrency, fetchExchangeRate, isSaving, isEditing, showToast, toastMsg, expenseSyncing, fetchExpensesFromSheet, handleWeatherClick, editItem, cancelEdit, isUrlConfigured };
             }
         }).mount('#app');
     </script>
