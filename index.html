@@ -99,7 +99,6 @@
                     </div>
                 </div>
                 
-                <!-- 天氣區塊 -->
                 <div @click="handleWeatherClick"
                      :class="['bg-black/40 p-4 rounded-[40px] backdrop-blur-xl text-center border border-white/20 min-w-[120px] float-anim cursor-pointer hover:bg-black/60 active:scale-95 transition-all shadow-lg', weather.status === 'loading' ? 'loading-shimmer' : '']">
                     
@@ -154,7 +153,6 @@
                 </button>
             </div>
 
-            <!-- 日期導覽 -->
             <div class="flex overflow-x-auto px-6 space-x-4 hide-scrollbar py-2">
                 <div v-for="(day, index) in itinerary" :key="index" @click="selectedDay = index"
                      :class="['flex-shrink-0 w-16 h-22 rounded-3xl flex flex-col items-center justify-center transition-all border-4', 
@@ -170,11 +168,10 @@
                     <h2 class="text-2xl font-black text-slate-800 tracking-tight">{{ itinerary[selectedDay].date }} 計畫</h2>
                 </div>
 
-                <!-- 行程列表 -->
                 <div v-for="plan in itinerary[selectedDay].plans" :key="plan.title + plan.time" class="kuromi-card p-6 mb-5 shadow-lg flex justify-between items-center group">
                     <div class="flex-1">
                         <div class="flex items-center gap-2 mb-2">
-                            <span class="text-[11px] font-bold text-white bg-[#9D76C1] px-3 py-1 rounded-full">{{ plan.time }}</span>
+                            <span class="text-[11px] font-bold text-white bg-[#9D76C1] px-3 py-1 rounded-full min-w-[50px] text-center">{{ plan.time }}</span>
                         </div>
                         <p class="font-bold text-slate-700 text-xl leading-tight">{{ plan.title }}</p>
                     </div>
@@ -188,15 +185,13 @@
                     <p class="text-sm font-bold">這天暫時沒有行程唷</p>
                 </div>
 
-                <!-- 偵錯資訊 -->
-                <div v-if="syncCount > 0" class="mt-10 text-center opacity-30 text-[9px] font-bold uppercase tracking-widest border-t pt-4">
-                    <p>Debug: 已解析 {{ syncCount }} 項行程</p>
-                    <p>佈局模式: A-時間 | B-5/30 | C-5/31 ...</p>
+                <div v-if="syncCount > 0" class="mt-10 text-center opacity-30 text-[9px] font-bold uppercase tracking-widest">
+                    <p>Debug: 已從雲端解析 {{ syncCount }} 項行程</p>
                 </div>
             </main>
         </div>
 
-        <!-- 2. 錢包管家 (記帳分頁) -->
+        <!-- 2. 錢包管家 -->
         <div v-if="activeTab === 'expense'" class="p-6 space-y-8">
             <!-- 匯率工具 -->
             <div class="kuromi-card bg-[#2D2727] text-white p-8 shadow-2xl border-none">
@@ -362,7 +357,6 @@
         const { createApp, ref, computed, onMounted, nextTick } = Vue;
         createApp({
             setup() {
-                // --- ⚠️ 雲端參數設定 ---
                 const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxUaoB_wXAYkZh3cW0S5HB_41Gw4wYI-mBkMjIYWOThVRgS-4e8bmWOTclAwLUkOUY/exec"; 
                 const SHEET_ID = '19REJaflyB3ipjTvvQABcAMe95wjiBKwQNf7eH8J97N8';
                 const ITINERARY_GID = '1691304811';
@@ -426,7 +420,6 @@
 
                 const parseCSV = (text) => {
                     const rows = [];
-                    // 強化版換行解析，移除潛在的 \r 字元
                     const lines = text.replace(/\r/g, '').split('\n');
                     lines.forEach(line => {
                         const parts = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
@@ -495,7 +488,6 @@
                     finally { isSaving.value = false; await nextTick(); lucide.createIcons(); }
                 };
 
-                // --- 🚀 核心修正：位置對應法解析行程 ---
                 const fetchItineraryFromSheet = async () => {
                     syncStatus.value = 'loading';
                     const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${ITINERARY_GID}&t=${Date.now()}`;
@@ -504,7 +496,6 @@
                         const csvText = await response.text();
                         const rows = parseCSV(csvText);
                         
-                        // 重設 8 天行程
                         const newItinerary = [
                             { date: '5/30', dayName: 'SAT', plans: [] }, { date: '5/31', dayName: 'SUN', plans: [] },
                             { date: '6/1', dayName: 'MON', plans: [] }, { date: '6/2', dayName: 'TUE', plans: [] },
@@ -518,29 +509,34 @@
                         // 遍歷所有列 (Row)
                         for (let i = 1; i < rows.length; i++) {
                             const row = rows[i];
-                            const timeStr = row[0]; // A 欄：絕對是時間
+                            // 修正：強行抓取 A 欄內容，即便有空格也處理
+                            const rawTime = row[0] ? String(row[0]).trim() : '';
+                            const timeStr = rawTime || '--:--';
                             
                             // 遍歷欄位：B(1) 對應 5/30, C(2) 對應 5/31... I(8) 對應 6/6
                             for (let colIdx = 1; colIdx <= 8; colIdx++) {
-                                const planTitle = row[colIdx];
+                                const planTitle = row[colIdx] ? String(row[colIdx]).trim() : '';
                                 
                                 // 如果格子有字且對應的本地行程存在
-                                if (planTitle && planTitle.trim() !== "" && newItinerary[colIdx-1]) {
+                                if (planTitle !== "" && newItinerary[colIdx-1]) {
                                     newItinerary[colIdx-1].plans.push({
-                                        time: timeStr || '--:--', // 抓 A 欄位
-                                        title: planTitle.trim()
+                                        time: timeStr, 
+                                        title: planTitle
                                     });
                                     count++;
                                 }
                             }
                         }
 
-                        // 為每一天排序時間
+                        // 針對每一天的行程進行時間排序 (防錯強化)
                         newItinerary.forEach(day => {
                             day.plans.sort((a, b) => {
-                                const tA = a.time.replace(/\D/g, '').padEnd(4, '0');
-                                const tB = b.time.replace(/\D/g, '').padEnd(4, '0');
-                                return tA.localeCompare(tB);
+                                const getScore = (t) => {
+                                    const match = String(t).match(/(\d{1,2})[\:]?(\d{2})/);
+                                    if (!match) return 9999;
+                                    return parseInt(match[1]) * 100 + parseInt(match[2]);
+                                };
+                                return getScore(a.time) - getScore(b.time);
                             });
                         });
                         
