@@ -129,8 +129,8 @@
             <!-- (A) 行程首頁：日期大按鈕 -->
             <transition name="slide-up">
                 <div v-if="itineraryView === 'list'" class="px-6 py-8 space-y-6">
-                    <div class="flex items-center justify-between mb-2">
-                        <h2 class="text-2xl font-black text-slate-800 text-center">選個日期開始冒險 💜</h2>
+                    <div class="flex items-center justify-between mb-2 px-2">
+                        <h2 class="text-2xl font-black text-slate-800">選擇冒險日期 💜</h2>
                         <button @click="fetchItineraryFromSheet" class="p-2 text-purple-400 active:rotate-180 transition-all duration-500">
                             <i data-lucide="refresh-cw" :class="{'animate-spin': syncStatus === 'loading'}"></i>
                         </button>
@@ -156,17 +156,22 @@
 
                 <!-- (B) 行程詳情頁 -->
                 <div v-else-if="itineraryView === 'detail'" class="px-6 py-8 min-h-screen">
-                    <div class="flex items-center gap-5 mb-10">
-                        <button @click="itineraryView = 'list'" class="p-5 bg-white rounded-full shadow-lg text-purple-600 active:scale-75 transition-all border border-purple-50">
-                            <i data-lucide="chevron-left" class="w-8 h-8"></i>
-                        </button>
-                        <div>
-                            <h2 class="text-4xl font-black text-slate-800 tracking-tighter">{{ itinerary[selectedDay].date }}</h2>
-                            <p class="text-xs font-black text-purple-400 uppercase tracking-[0.3em] mt-1">{{ itinerary[selectedDay].dayName }} 計畫清單</p>
+                    <div class="flex items-center justify-between mb-8">
+                        <div class="flex items-center gap-5">
+                            <button @click="itineraryView = 'list'" class="p-5 bg-white rounded-full shadow-lg text-purple-600 active:scale-75 transition-all border border-purple-50">
+                                <i data-lucide="chevron-left" class="w-8 h-8"></i>
+                            </button>
+                            <div>
+                                <h2 class="text-4xl font-black text-slate-800 tracking-tighter">{{ itinerary[selectedDay].date }}</h2>
+                                <p class="text-xs font-black text-purple-400 uppercase mt-1">{{ itinerary[selectedDay].dayName }} 計畫清單</p>
+                            </div>
                         </div>
+                        <button @click="startAddPlan" class="bg-purple-600 text-white p-4 rounded-full shadow-xl active:scale-90 transition flex items-center gap-2">
+                            <i data-lucide="plus" class="w-6 h-6"></i>
+                            <span class="text-xs font-bold pr-1">新增計畫</span>
+                        </button>
                     </div>
 
-                    <!-- 行程列表 -->
                     <div v-if="itinerary[selectedDay].plans.length > 0" class="space-y-6">
                         <div v-for="(plan, pIdx) in itinerary[selectedDay].plans" :key="pIdx" 
                              class="kuromi-card p-6 flex flex-col shadow-xl border-l-[15px] border-[#9D76C1] cursor-default">
@@ -190,24 +195,24 @@
                         <p class="font-black text-xl tracking-widest uppercase">No Plans Yet</p>
                     </div>
 
-                    <!-- 行程編輯彈窗 -->
+                    <!-- 行程編輯/新增彈窗 -->
                     <div v-if="isEditingPlan" class="fixed inset-0 z-[110] bg-black/60 backdrop-blur-md flex items-center justify-center p-6">
                         <div class="bg-white w-full rounded-[40px] p-8 shadow-2xl space-y-6 border-4 border-purple-200">
                             <h3 class="text-xl font-black text-slate-800 flex items-center gap-2 italic">
-                                <i data-lucide="edit-3" class="text-purple-500"></i> 編輯計畫並同步 ✏️
+                                <i data-lucide="edit-3" class="text-purple-500"></i> {{ editingPlanIndex === -1 ? '新增計畫' : '編輯計畫' }} ✏️
                             </h3>
                             <div>
                                 <label class="text-[10px] font-black text-slate-400 uppercase ml-1">時間 (A欄)</label>
-                                <input v-model="editPlanBuffer.time" class="w-full border-b-4 border-purple-50 p-3 text-lg font-bold focus:border-purple-400 outline-none">
+                                <input v-model="editPlanBuffer.time" placeholder="請輸入時間" class="w-full border-b-4 border-purple-50 p-3 text-lg font-bold focus:border-purple-400 outline-none">
                             </div>
                             <div>
                                 <label class="text-[10px] font-black text-slate-400 uppercase ml-1">計畫內容 ({{ itinerary[selectedDay].date }})</label>
-                                <input v-model="editPlanBuffer.title" class="w-full border-b-4 border-purple-50 p-3 text-lg font-bold focus:border-purple-400 outline-none">
+                                <input v-model="editPlanBuffer.title" placeholder="請輸入內容" class="w-full border-b-4 border-purple-50 p-3 text-lg font-bold focus:border-purple-400 outline-none">
                             </div>
                             <div class="flex gap-3 pt-4">
                                 <button @click="savePlanChange" :disabled="isSaving" class="flex-1 kuromi-gradient text-white py-5 rounded-[30px] font-black shadow-lg flex items-center justify-center gap-2 active:scale-95">
                                     <i v-if="isSaving" data-lucide="loader-2" class="animate-spin"></i>
-                                    {{ isSaving ? '同步中' : '儲存修改 💜' }}
+                                    {{ isSaving ? '同步中' : '確認儲存 💜' }}
                                 </button>
                                 <button @click="isEditingPlan = false" class="px-8 bg-slate-100 text-slate-400 rounded-[30px] font-bold">取消</button>
                             </div>
@@ -243,7 +248,7 @@
             <div id="expense-form" class="kuromi-card p-8 space-y-6 shadow-xl border-2 border-purple-100 relative">
                 <div class="flex justify-between items-center mb-2">
                     <h3 class="font-black text-slate-800 italic underline decoration-pink-300">{{ isEditing ? '修改紀錄' : '新增支出' }} 💜</h3>
-                    <select v-model="newExpense.payer" class="bg-purple-50 rounded-2xl px-4 py-2 font-bold text-sm text-[#9D76C1] outline-none shadow-inner">
+                    <select v-model="newExpense.payer" class="bg-purple-50 rounded-2xl px-4 py-2 font-bold text-sm text-[#9D76C1] outline-none shadow-inner border-none">
                         <option v-for="m in members" :key="m">{{m}}</option>
                     </select>
                 </div>
@@ -252,17 +257,17 @@
                     <input v-model="newExpense.item" placeholder="品項名稱" class="w-full border-b-2 border-purple-50 pb-3 text-sm focus:border-purple-400 outline-none">
                 </div>
                 <div class="grid grid-cols-2 gap-4">
-                    <input v-model.number="newExpense.amount" @input="convertCurrency('jpy')" type="number" placeholder="日幣 ¥" class="w-full border-b-2 border-purple-50 pb-3 text-sm focus:border-purple-400 outline-none">
-                    <input v-model.number="newExpense.amountTwd" @input="convertCurrency('twd')" type="number" placeholder="台幣 $" class="w-full border-b-2 border-purple-50 pb-3 text-sm focus:border-purple-400 outline-none">
+                    <input v-model.number="newExpense.amount" @input="convertCurrency('jpy')" type="number" placeholder="日幣 ¥" class="w-full border-b-2 border-purple-50 p-3 text-sm focus:border-purple-400 outline-none border-b-2">
+                    <input v-model.number="newExpense.amountTwd" @input="convertCurrency('twd')" type="number" placeholder="台幣 $" class="w-full border-b-2 border-purple-50 p-3 text-sm focus:border-purple-400 outline-none border-b-2">
                 </div>
-                <input v-model="newExpense.remark" placeholder="備註 (例如：刷卡、好吃、分帳...)" class="w-full border-b-2 border-purple-50 pb-3 text-sm focus:border-purple-400 outline-none">
+                <input v-model="newExpense.remark" placeholder="備註 (刷卡、好吃、分帳...)" class="w-full border-b-2 border-purple-50 pb-3 text-sm focus:border-purple-400 outline-none">
 
                 <div class="flex gap-2">
                     <button @click="addExpense" :disabled="isSaving" class="flex-1 kuromi-gradient text-white py-5 rounded-[30px] font-bold text-lg shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2">
                         <i v-if="isSaving" data-lucide="loader-2" class="animate-spin"></i>
                         {{ isSaving ? '同步中' : '紀錄支出 💜' }}
                     </button>
-                    <button v-if="isEditing" @click="cancelEdit" class="px-6 bg-slate-100 text-slate-400 rounded-[30px] font-bold text-sm shadow-sm">取消</button>
+                    <button v-if="isEditing" @click="cancelEdit" class="px-6 bg-slate-100 text-slate-400 rounded-[30px] font-bold text-sm">取消</button>
                 </div>
             </div>
 
@@ -294,7 +299,7 @@
 
         <!-- 3. 百寶箱 -->
         <div v-if="activeTab === 'tools'" class="p-6 space-y-10">
-            <section class="kuromi-card p-8 bg-white border-4 border-[#9D76C1] shadow-2xl">
+            <section class="kuromi-card p-8 bg-white border-4 border-[#9D76C1] shadow-2xl relative">
                 <h3 class="font-black text-2xl mb-1 text-[#2D2727]">博多西鐵 CROOM</h3>
                 <p class="text-xs text-slate-400 mb-6 font-bold uppercase">櫛田神社前站 4 號出口對面</p>
                 <div class="flex gap-4">
@@ -327,9 +332,7 @@
         const { createApp, ref, computed, onMounted, nextTick } = Vue;
         createApp({
             setup() {
-                // --- ⚠️ GAS 網址已更新為您的最新網址 ---
                 const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwvdE4Xl8y5MHHPRN_Ep5zOY5GFBSc41p7vtpopQaDdxsTsVYymukBsYZfCYA7m01V4/exec"; 
-                
                 const SHEET_ID = '1u-FDoDbi50FROw4tDGrsWRnbAsJQMDdZEb1CySV1qc4';
                 const ITINERARY_GID = '1691304811';
                 const EXPENSE_GID = '146729228';
@@ -344,7 +347,6 @@
                 const showToast = ref(false);
                 const toastMsg = ref('');
                 const syncStatus = ref('idle');
-                const syncCount = ref(0);
                 const isSaving = ref(false);
                 const isEditing = ref(false);
 
@@ -373,6 +375,13 @@
                     nextTick(() => lucide.createIcons());
                 };
 
+                const startAddPlan = () => {
+                    editingPlanIndex.value = -1;
+                    editPlanBuffer.value = { time: '', title: '', oldTime: '' };
+                    isEditingPlan.value = true;
+                    nextTick(() => lucide.createIcons());
+                };
+
                 const startEditPlan = (pIdx) => {
                     editingPlanIndex.value = pIdx;
                     const plan = itinerary.value[selectedDay.value].plans[pIdx];
@@ -382,7 +391,7 @@
                 };
 
                 const savePlanChange = async () => {
-                    if (!editPlanBuffer.value.title) return;
+                    if (!editPlanBuffer.value.title || !editPlanBuffer.value.time) return;
                     isSaving.value = true;
                     const plan = editPlanBuffer.value;
                     const targetDate = itinerary.value[selectedDay.value].date;
@@ -395,21 +404,18 @@
                             body: JSON.stringify({
                                 type: 'itinerary',
                                 targetDate: targetDate, 
-                                oldTime: plan.oldTime,  
+                                oldTime: plan.oldTime, 
                                 time: plan.time,        
-                                title: plan.title       
+                                title: plan.title,
+                                isNew: editingPlanIndex.value === -1
                             })
                         });
 
-                        itinerary.value[selectedDay.value].plans[editingPlanIndex.value] = { 
-                            time: plan.time, title: plan.title 
-                        };
-                        
-                        isEditingPlan.value = false;
-                        toastMsg.value = "行程已同步至雲端！💜";
+                        toastMsg.value = editingPlanIndex.value === -1 ? "行程已新增！💜" : "行程已同步！💜";
                         showToast.value = true;
                         setTimeout(() => showToast.value = false, 2500);
                         
+                        isEditingPlan.value = false;
                         setTimeout(fetchItineraryFromSheet, 2000);
                     } catch (e) {
                         toastMsg.value = "同步失敗，請檢查網址";
@@ -461,17 +467,12 @@
                     const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${ITINERARY_GID}&t=${Date.now()}`;
                     try {
                         const res = await fetch(url); const csv = await res.text(); const rows = parseCSV(csv);
-                        
                         const newItinerary = [
                             { date: '5/30', dayName: 'SAT', plans: [] }, { date: '5/31', dayName: 'SUN', plans: [] },
                             { date: '6/1', dayName: 'MON', plans: [] }, { date: '6/2', dayName: 'TUE', plans: [] },
                             { date: '6/3', dayName: 'WED', plans: [] }, { date: '6/4', dayName: 'THU', plans: [] },
                             { date: '6/5', dayName: 'FRI', plans: [] }, { date: '6/6', dayName: 'SAT', plans: [] }
                         ];
-
-                        if (rows.length < 1) return;
-                        let count = 0;
-
                         for (let i = 1; i < rows.length; i++) {
                             const row = rows[i];
                             const timeStr = row[0] || '--:--'; 
@@ -479,11 +480,9 @@
                                 const title = row[colIdx];
                                 if (title && title.trim() !== "" && newItinerary[colIdx-1]) {
                                     newItinerary[colIdx-1].plans.push({ time: timeStr.trim(), title: title.trim() });
-                                    count++;
                                 }
                             }
                         }
-
                         newItinerary.forEach(day => {
                             day.plans.sort((a, b) => {
                                 const score = (t) => {
@@ -493,25 +492,43 @@
                                 return score(a.time) - score(b.time);
                             });
                         });
-                        
-                        itinerary.value = newItinerary; syncCount.value = count; syncStatus.value = 'success';
-                    } catch (e) { syncStatus.value = 'error'; }
-                    finally { setTimeout(() => syncStatus.value = 'idle', 2000); nextTick(() => lucide.createIcons()); }
+                        itinerary.value = newItinerary; syncStatus.value = 'success';
+                    } finally { setTimeout(() => syncStatus.value = 'idle', 2000); nextTick(() => lucide.createIcons()); }
                 };
 
                 const addExpense = async () => {
                     if (!newExpense.value.item || !newExpense.value.amount) return;
-                    isSaving.value = true; if (!isEditing.value) newExpense.value.id = 'ID-' + Date.now();
-                    const dataToSave = { ...newExpense.value, type: 'expense' };
+                    isSaving.value = true;
+                    if (!isEditing.value) newExpense.value.id = 'ID-' + Date.now();
+                    
+                    const dataToSave = { 
+                        ...newExpense.value, 
+                        type: 'expense' // ⚠️ 關鍵：明確標記為記帳類型
+                    };
+
                     try {
-                        await fetch(GAS_WEB_APP_URL, { method: "POST", mode: "no-cors", headers: { "Content-Type": "text/plain" }, body: JSON.stringify(dataToSave) });
-                        toastMsg.value = "支出已同步至雲端！💜"; showToast.value = true; setTimeout(() => showToast.value = false, 2500);
-                        cancelEdit(); setTimeout(fetchExpensesFromSheet, 2000);
-                    } catch (e) { toastMsg.value = "連線失敗"; showToast.value = true; } finally { isSaving.value = false; }
+                        await fetch(GAS_WEB_APP_URL, { 
+                            method: "POST", 
+                            mode: "no-cors", 
+                            headers: { "Content-Type": "text/plain" }, 
+                            body: JSON.stringify(dataToSave) 
+                        });
+                        toastMsg.value = "支出已同步至雲端！💜"; 
+                        showToast.value = true; 
+                        setTimeout(() => showToast.value = false, 2500);
+                        cancelEdit(); 
+                        setTimeout(fetchExpensesFromSheet, 2000);
+                    } catch (e) { 
+                        toastMsg.value = "連線失敗"; 
+                        showToast.value = true; 
+                    } finally { 
+                        isSaving.value = false; 
+                    }
                 };
 
                 const editItem = (ex) => {
-                    newExpense.value = { ...ex }; isEditing.value = true;
+                    newExpense.value = { ...ex }; 
+                    isEditing.value = true;
                     document.getElementById('expense-form').scrollIntoView({ behavior: 'smooth' });
                 };
 
@@ -552,8 +569,8 @@
                     activeTab, itineraryView, selectedDay, fxInput, members, expenses, newExpense, itinerary, packing, weather, 
                     syncStatus, exchangeRate, addExpense, openExternal, fetchItineraryFromSheet, 
                     convertCurrency, fetchExchangeRate, isSaving, isEditing, showToast, toastMsg, 
-                    fetchExpensesFromSheet, handleWeatherClick, editItem, cancelEdit, syncCount, goToDetail,
-                    isEditingPlan, startEditPlan, savePlanChange, editPlanBuffer
+                    fetchExpensesFromSheet, handleWeatherClick, editItem, cancelEdit, goToDetail,
+                    isEditingPlan, startEditPlan, startAddPlan, savePlanChange, editPlanBuffer, editingPlanIndex
                 };
             }
         }).mount('#app');
