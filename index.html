@@ -106,7 +106,7 @@
                      class="bg-black/40 p-6 rounded-[50px] backdrop-blur-xl text-center border-2 border-white/20 min-w-[130px] float-anim cursor-pointer hover:bg-black/60 transition-all shadow-2xl">
                     <i data-lucide="cloud-sun" class="w-14 h-14 mx-auto mb-1 text-[#FF91C1]"></i>
                     <p class="text-4xl font-black">{{ weather.temp }}°C</p>
-                    <p class="text-xs opacity-80 uppercase mt-1 tracking-widest">Fukuoka</p>
+                    <p class="text-[10px] opacity-80 uppercase mt-1 tracking-widest">Fukuoka</p>
                 </div>
             </div>
         </header>
@@ -176,8 +176,7 @@
                             <div class="flex justify-between items-start mb-8">
                                 <div class="flex items-center gap-3">
                                     <span class="text-xl font-black text-white bg-slate-800 px-6 py-2.5 rounded-full shadow-xl tracking-tight">{{ plan.time }}</span>
-                                    <!-- 本地儲存中的提示 -->
-                                    <span v-if="plan.isLocal" class="text-[10px] font-black text-white bg-pink-400 px-3 py-1 rounded-full animate-pulse">正在寫入雲端...</span>
+                                    <span v-if="plan.isLocal" class="text-[10px] font-black text-white bg-pink-400 px-3 py-1 rounded-full animate-pulse">正在更新雲端...</span>
                                 </div>
                                 <div class="flex gap-4">
                                     <button @click="startEditPlan(pIdx)" class="p-5 bg-purple-50 text-purple-400 rounded-full active:scale-75 transition-transform shadow-sm">
@@ -216,7 +215,7 @@
                             <div class="flex gap-4 pt-6">
                                 <button @click="savePlanChange" :disabled="isSaving" class="flex-1 kuromi-gradient text-white py-8 rounded-[40px] font-black text-2xl shadow-2xl flex items-center justify-center gap-4 active:scale-95 disabled:grayscale">
                                     <i v-if="isSaving" data-lucide="loader-2" class="animate-spin w-8 h-8"></i>
-                                    {{ isSaving ? '同步中' : '儲存行程 💜' }}
+                                    {{ isSaving ? '同步中' : '儲存 💜' }}
                                 </button>
                                 <button @click="isEditingPlan = false" class="px-10 bg-slate-100 text-slate-400 rounded-[40px] font-black text-xl">取消</button>
                             </div>
@@ -226,10 +225,105 @@
             </transition>
         </div>
 
-        <!-- 2. 工具與狀態區 (略，保持可愛風格) -->
-        <div v-if="activeTab === 'expense' || activeTab === 'tools'" class="p-12 text-center py-40 opacity-50">
-            <i data-lucide="heart" class="w-24 h-24 mx-auto text-purple-200 animate-pulse"></i>
-            <p class="font-black text-2xl mt-4">功能運作中！ 💜</p>
+        <!-- 2. 錢包管理 (恢復原本功能) -->
+        <div v-if="activeTab === 'expense'" class="p-10 space-y-12">
+            <div class="kuromi-card bg-[#2D2727] text-white p-12 border-none shadow-2xl relative overflow-hidden">
+                <div class="absolute -right-6 -bottom-6 opacity-10">
+                    <i data-lucide="coins" class="w-40 h-40"></i>
+                </div>
+                <div class="flex justify-between items-start mb-8">
+                    <p class="text-md text-[#FF91C1] font-black uppercase tracking-[0.3em]">JPY ⮕ TWD 匯率換算</p>
+                    <i data-lucide="banknote" class="w-10 h-10 text-[#9D76C1]"></i>
+                </div>
+                <div class="flex items-center justify-between relative z-10">
+                    <div class="flex-1">
+                        <input v-model.number="fxInput" type="number" placeholder="0" class="w-full bg-transparent text-7xl font-black focus:outline-none placeholder:text-white/10 tracking-tighter">
+                    </div>
+                    <div class="text-right">
+                        <p class="text-xs opacity-40 font-black uppercase mb-1">NT$</p>
+                        <p class="text-6xl font-black text-[#FF91C1] tracking-tighter">{{ Math.round(fxInput * exchangeRate).toLocaleString() }}</p>
+                    </div>
+                </div>
+                <div class="mt-10 pt-8 border-t border-white/10 flex justify-between text-sm text-slate-500 font-black tracking-widest">
+                    <span>1 JPY = {{ exchangeRate }} TWD</span>
+                    <button @click="fetchExchangeRate" class="text-purple-300 flex items-center gap-2"><i data-lucide="refresh-cw" class="w-4 h-4"></i> 更新匯率</button>
+                </div>
+            </div>
+
+            <!-- 新增支出表單 -->
+            <div id="expense-form" class="kuromi-card p-12 space-y-10 shadow-2xl border-[6px] border-purple-100 relative">
+                <div class="flex justify-between items-center">
+                    <h3 class="text-3xl font-black text-slate-800 italic underline decoration-pink-300 decoration-8 underline-offset-8">{{ isEditing ? '修改帳目' : '新增支出' }} 💜</h3>
+                    <select v-model="newExpense.payer" class="bg-purple-100 rounded-[25px] px-8 py-4 font-black text-lg text-[#9D76C1] outline-none border-none shadow-inner">
+                        <option v-for="m in members" :key="m">{{m}}</option>
+                    </select>
+                </div>
+                <div class="space-y-8">
+                    <div class="space-y-6">
+                        <input v-model="newExpense.date" type="date" class="w-full border-b-6 border-purple-50 pb-5 text-2xl font-black focus:border-purple-400 outline-none bg-transparent">
+                        <input v-model="newExpense.item" placeholder="品項說明" class="w-full border-b-6 border-purple-50 pb-5 text-2xl font-black focus:border-purple-400 outline-none">
+                    </div>
+                    <div class="grid grid-cols-2 gap-8">
+                        <input v-model.number="newExpense.amount" @input="convertCurrency('jpy')" type="number" placeholder="日幣 ¥" class="w-full border-4 border-purple-50 p-6 text-3xl font-black focus:border-purple-400 outline-none bg-slate-50 rounded-[30px]">
+                        <input v-model.number="newExpense.amountTwd" @input="convertCurrency('twd')" type="number" placeholder="台幣 $" class="w-full border-4 border-purple-50 p-6 text-3xl font-black focus:border-purple-400 outline-none bg-slate-50 rounded-[30px]">
+                    </div>
+                    <input v-model="newExpense.remark" placeholder="備註 (刷卡、分帳、好吃...)" class="w-full border-b-6 border-purple-50 pb-5 text-2xl font-black focus:border-purple-400 outline-none">
+                </div>
+
+                <div class="flex gap-4">
+                    <button @click="addExpense" :disabled="isSaving" class="flex-1 kuromi-gradient text-white py-8 rounded-[50px] font-black text-2xl shadow-2xl active:scale-95 transition-all flex items-center justify-center gap-4">
+                        <i v-if="isSaving" data-lucide="loader-2" class="animate-spin w-8 h-8"></i>
+                        {{ isSaving ? '同步中' : '儲存 💜' }}
+                    </button>
+                    <button v-if="isEditing" @click="cancelEdit" class="px-10 bg-slate-100 text-slate-400 rounded-[50px] font-black text-xl">取消</button>
+                </div>
+            </div>
+
+            <!-- 記帳明細 -->
+            <div class="space-y-8 pb-20">
+                <div class="flex justify-between items-center px-4">
+                    <h3 class="text-3xl font-black text-slate-800 flex items-center gap-4">
+                        <i data-lucide="scroll-text" class="w-10 h-10 text-purple-400"></i> 雲端帳本
+                    </h3>
+                    <button @click="fetchExpensesFromSheet" class="text-md text-purple-500 font-black bg-purple-50 px-6 py-3 rounded-full active:scale-90 transition shadow-sm">重新整理</button>
+                </div>
+
+                <div v-for="(ex, idx) in expenses" :key="ex.id" class="kuromi-card p-10 flex flex-col shadow-2xl border-l-[25px] border-[#9D76C1]">
+                    <div class="flex justify-between items-center">
+                        <div class="flex-1 mr-8">
+                            <div class="flex items-center gap-4 mb-3">
+                                <span class="text-sm font-black text-white bg-slate-800 px-4 py-1.5 rounded-xl">{{ex.date}}</span>
+                                <span class="text-md text-slate-400 font-black uppercase tracking-widest">{{ex.payer}}</span>
+                            </div>
+                            <p class="text-3xl font-black text-slate-700">{{ex.item}}</p>
+                        </div>
+                        <div class="text-right flex items-center gap-6">
+                            <div>
+                                <p class="text-4xl font-black text-slate-800">¥{{ex.amount.toLocaleString()}}</p>
+                                <p class="text-md font-black text-pink-400">NT${{ex.amountTwd.toLocaleString()}}</p>
+                            </div>
+                            <button @click="editExpenseItem(ex)" class="p-5 bg-purple-50 text-purple-400 rounded-full active:scale-90 transition shadow-inner">
+                                <i data-lucide="pencil" class="w-8 h-8"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. 旅行寶箱 -->
+        <div v-if="activeTab === 'tools'" class="p-10 space-y-16">
+            <section class="kuromi-card p-12 bg-white border-[10px] border-[#9D76C1] shadow-2xl relative">
+                <div class="absolute -right-8 -top-8 animate-bounce">
+                    <i data-lucide="hotel" class="w-20 h-20 text-purple-200"></i>
+                </div>
+                <h3 class="text-4xl font-black mb-3 text-[#2D2727]">博多西鐵 CROOM</h3>
+                <p class="text-md text-slate-400 mb-10 font-black uppercase tracking-[0.2em]">櫛田神社前站 4 號出口對面</p>
+                <div class="flex gap-6">
+                    <button @click="openExternal('博多祇園櫛田神社前西鐵克魯姆酒店')" class="flex-1 kuromi-gradient text-white py-7 rounded-[40px] font-black text-xl shadow-2xl">地圖 📍</button>
+                    <a href="tel:092-235-0311" class="flex-1 border-6 border-[#2D2727] text-center py-7 rounded-[40px] font-black text-xl flex items-center justify-center">撥打 📞</a>
+                </div>
+            </section>
         </div>
 
         <div class="fixed bottom-0 left-0 right-0 h-8 kuromi-gradient z-[60]"></div>
@@ -242,6 +336,7 @@
                 const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwvdE4Xl8y5MHHPRN_Ep5zOY5GFBSc41p7vtpopQaDdxsTsVYymukBsYZfCYA7m01V4/exec"; 
                 const SHEET_ID = '1u-FDoDbi50FROw4tDGrsWRnbAsJQMDdZEb1CySV1qc4';
                 const ITINERARY_GID = '1691304811';
+                const EXPENSE_GID = '146729228';
 
                 const activeTab = ref('itinerary');
                 const itineraryView = ref('list'); 
@@ -251,6 +346,11 @@
                 const showToast = ref(false);
                 const toastMsg = ref('');
                 const weather = ref({ temp: '24', icon: 'cloud-sun', status: 'ready' });
+                const fxInput = ref(null);
+                const exchangeRate = ref(0.211);
+                const members = ['KCY', 'Ruby', 'YSL', 'Tsai'];
+                const expenses = ref([]);
+                const newExpense = ref({ id: null, date: new Date().toISOString().split('T')[0], item: '', amount: null, amountTwd: null, payer: 'KCY', remark: '' });
 
                 // 本地鎖定資料庫：用於克服 Google CSV 快取延遲
                 const localTripLock = ref({}); 
@@ -265,13 +365,12 @@
                 const isEditingPlan = ref(false);
                 const editingPlanIndex = ref(-1);
                 const editPlanBuffer = ref({ time: '', title: '', oldTime: '' });
+                const isEditing = ref(false);
 
-                // 讀取本地儲存的鎖定行程
+                // 讀取本地鎖
                 const loadLocalLocks = () => {
                     const saved = localStorage.getItem('fukuoka_trip_locks');
-                    if (saved) {
-                        localTripLock.value = JSON.parse(saved);
-                    }
+                    if (saved) localTripLock.value = JSON.parse(saved);
                 };
 
                 const saveLocalLocks = () => {
@@ -313,40 +412,31 @@
                     };
 
                     try {
-                        // 1. 立即反應在本地畫面
-                        if (isNew) {
-                            itinerary.value[selectedDay.value].plans.push(planData);
-                        } else {
-                            itinerary.value[selectedDay.value].plans[editingPlanIndex.value] = planData;
-                        }
+                        // 1. 立即更新本地畫面
+                        if (isNew) itinerary.value[selectedDay.value].plans.push(planData);
+                        else itinerary.value[selectedDay.value].plans[editingPlanIndex.value] = planData;
                         
-                        // 2. 存入本地鎖定庫 (LocalStorage)，防止 CSV 重刷時消失
+                        // 2. 存入持久鎖
                         localTripLock.value[planData.lockId] = planData;
                         saveLocalLocks();
                         
-                        // 重新排序
-                        itinerary.value[selectedDay.value].plans.sort((a,b) => {
-                            const tA = a.time.replace(':','');
-                            const tB = b.time.replace(':','');
-                            return parseInt(tA) - parseInt(tB);
-                        });
+                        itinerary.value[selectedDay.value].plans.sort((a,b) => parseInt(a.time.replace(':','')) - parseInt(b.time.replace(':','')));
 
-                        // 3. 非同步送往雲端 (不要讓使用者等太久)
-                        fetch(GAS_WEB_APP_URL, {
+                        // 3. 雲端同步
+                        await fetch(GAS_WEB_APP_URL, {
                             method: "POST", mode: "no-cors",
                             headers: { "Content-Type": "text/plain" },
                             body: JSON.stringify({ type: 'itinerary', ...planData, isNew: isNew })
                         });
 
-                        toastMsg.value = "已儲存雲端 💜";
+                        toastMsg.value = "雲端同步成功！💜";
                         showToast.value = true;
                         setTimeout(() => showToast.value = false, 3000);
                         isEditingPlan.value = false;
 
-                        // 8秒後才開始嘗試重新讀取 (給 Google 快取一點時間)
-                        setTimeout(fetchItineraryFromSheet, 8000);
+                        setTimeout(fetchItineraryFromSheet, 10000);
                     } catch (e) {
-                        toastMsg.value = "雲端連線失敗"; 
+                        toastMsg.value = "同步延遲中..."; 
                         showToast.value = true;
                     } finally { isSaving.value = false; }
                 };
@@ -357,19 +447,14 @@
                     try {
                         const res = await fetch(url);
                         const csv = await res.text();
-                        
-                        // 解析 CSV
                         const rows = csv.replace(/\r/g, '').split('\n').map(line => {
-                            const result = [];
-                            let current = "";
-                            let inQuotes = false;
+                            const result = []; let current = ""; let inQuotes = false;
                             for (let i = 0; i < line.length; i++) {
                                 if (line[i] === '"') inQuotes = !inQuotes;
                                 else if (line[i] === ',' && !inQuotes) { result.push(current.trim()); current = ""; } 
                                 else current += line[i];
                             }
-                            result.push(current.trim());
-                            return result;
+                            result.push(current.trim()); return result;
                         });
 
                         const newItinerary = [
@@ -391,25 +476,21 @@
                             }
                         }
 
-                        // 【重點：合併本地鎖定資料】
+                        // 合併本地鎖定行程
                         newItinerary.forEach(day => {
                             Object.keys(localTripLock.value).forEach(lockId => {
                                 const lock = localTripLock.value[lockId];
                                 if (lock.targetDate === day.date) {
-                                    // 檢查雲端是否已經有這一筆了 (完全比對時間與標題)
                                     const inCloud = day.plans.some(p => p.time === lock.time && p.title === lock.title);
-                                    if (inCloud) {
-                                        // 雲端已經同步了，移除本地鎖
-                                        delete localTripLock.value[lockId];
-                                    } else {
-                                        // 雲端還沒有，將本地版本強制插入或覆蓋
+                                    if (inCloud) delete localTripLock.value[lockId];
+                                    else {
                                         const existsIdx = day.plans.findIndex(p => p.time === lock.time);
                                         if (existsIdx !== -1) day.plans[existsIdx] = lock;
                                         else day.plans.push(lock);
                                     }
                                 }
                             });
-                            day.plans.sort((a,b) => a.time.replace(':','') - b.time.replace(':',''));
+                            day.plans.sort((a,b) => parseInt(a.time.replace(':','')) - parseInt(b.time.replace(':','')));
                         });
 
                         saveLocalLocks();
@@ -419,21 +500,74 @@
                     finally { setTimeout(() => syncStatus.value = 'idle', 2000); nextTick(() => lucide.createIcons()); }
                 };
 
+                const fetchExpensesFromSheet = async () => {
+                    const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${EXPENSE_GID}&t=${Date.now()}`;
+                    try {
+                        const res = await fetch(url); const csv = await res.text();
+                        const rows = csv.replace(/\r/g, '').split('\n').map(r => r.split(','));
+                        const cloudData = [];
+                        rows.forEach((row, idx) => {
+                            if (idx === 0 || !row[0] || !row[2]) return;
+                            cloudData.push({ date: row[0], payer: row[1], item: row[2].replace(/"/g, ''), amount: parseInt(row[3]) || 0, amountTwd: parseInt(row[4]) || 0, id: row[5] });
+                        });
+                        expenses.value = cloudData.sort((a, b) => new Date(b.date) - new Date(a.date));
+                    } catch (e) {} finally { nextTick(() => lucide.createIcons()); }
+                };
+
+                const addExpense = async () => {
+                    if (!newExpense.value.item || !newExpense.value.amount) return;
+                    isSaving.value = true;
+                    if (!isEditing.value) newExpense.value.id = 'EXP-' + Date.now();
+                    const dataToSave = { ...newExpense.value, type: 'expense' };
+                    try {
+                        await fetch(GAS_WEB_APP_URL, { method: "POST", mode: "no-cors", headers: { "Content-Type": "text/plain" }, body: JSON.stringify(dataToSave) });
+                        toastMsg.value = "記帳同步成功！💜"; showToast.value = true; setTimeout(() => showToast.value = false, 3000);
+                        if (!isEditing.value) expenses.value.unshift({ ...dataToSave });
+                        else { const idx = expenses.value.findIndex(e => e.id === dataToSave.id); if (idx !== -1) expenses.value[idx] = dataToSave; }
+                        cancelEdit();
+                        setTimeout(fetchExpensesFromSheet, 10000);
+                    } catch (e) { toastMsg.value = "同步延遲"; showToast.value = true; } finally { isSaving.value = false; }
+                };
+
+                const editExpenseItem = (ex) => {
+                    newExpense.value = { ...ex }; isEditing.value = true;
+                    document.getElementById('expense-form').scrollIntoView({ behavior: 'smooth' });
+                };
+
+                const cancelEdit = () => {
+                    isEditing.value = false;
+                    newExpense.value = { id: null, date: new Date().toISOString().split('T')[0], item: '', amount: null, amountTwd: null, payer: 'KCY', remark: '' };
+                };
+
+                const convertCurrency = (source) => {
+                    const rate = parseFloat(exchangeRate.value);
+                    if (source === 'jpy') newExpense.value.amountTwd = newExpense.value.amount ? Math.round(newExpense.value.amount * rate) : null;
+                    else if (source === 'twd') newExpense.value.amount = newExpense.value.amountTwd ? Math.round(newExpense.value.amountTwd / rate) : null;
+                };
+
+                const fetchExchangeRate = async () => {
+                    try {
+                        const res = await fetch('https://api.frankfurter.app/latest?from=JPY&to=TWD');
+                        const data = await res.json();
+                        if (data && data.rates.TWD) exchangeRate.value = data.rates.TWD.toFixed(3);
+                    } catch (e) {}
+                };
+
                 const openExternal = (q) => {
                     const target = q.includes('回飯店') ? '博多祇園櫛田神社前西鐵克魯姆酒店' : q;
                     window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(target)}`, '_blank');
                 };
 
                 onMounted(() => { 
-                    loadLocalLocks();
-                    fetchItineraryFromSheet(); 
+                    loadLocalLocks(); fetchItineraryFromSheet(); fetchExpensesFromSheet(); fetchExchangeRate();
                     lucide.createIcons(); 
                 });
 
                 return { 
                     activeTab, itineraryView, selectedDay, itinerary, isSaving, showToast, toastMsg, syncStatus, 
-                    weather, isEditingPlan, editingPlanIndex, editPlanBuffer,
-                    goToDetail, startAddPlan, startEditPlan, savePlanChange, openExternal, fetchItineraryFromSheet
+                    weather, isEditingPlan, editingPlanIndex, editPlanBuffer, fxInput, exchangeRate, members, expenses, newExpense, isEditing,
+                    goToDetail, startAddPlan, startEditPlan, savePlanChange, openExternal, fetchItineraryFromSheet,
+                    fetchExpensesFromSheet, addExpense, editExpenseItem, cancelEdit, convertCurrency, fetchExchangeRate
                 };
             }
         }).mount('#app');
