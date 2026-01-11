@@ -217,7 +217,7 @@
             </transition>
         </div>
 
-        <!-- 2. 錢包管家 -->
+        <!-- 2. 錢包管家 (記帳分頁) -->
         <div v-if="activeTab === 'expense'" class="p-6 space-y-8">
             <div class="kuromi-card bg-[#2D2727] text-white p-8 border-none shadow-2xl">
                 <div class="flex justify-between items-start mb-4">
@@ -262,7 +262,7 @@
                         <i v-if="isSaving" data-lucide="loader-2" class="animate-spin"></i>
                         {{ isSaving ? '同步中' : '紀錄支出 💜' }}
                     </button>
-                    <button v-if="isEditing" @click="cancelEdit" class="px-6 bg-slate-100 text-slate-400 rounded-[30px] font-bold text-sm">取消</button>
+                    <button v-if="isEditing" @click="cancelEdit" class="px-6 bg-slate-100 text-slate-400 rounded-[30px] font-bold text-sm shadow-sm">取消</button>
                 </div>
             </div>
 
@@ -327,8 +327,9 @@
         const { createApp, ref, computed, onMounted, nextTick } = Vue;
         createApp({
             setup() {
-                const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxUaoB_wXAYkZh3cW0S5HB_41Gw4wYI-mBkMjIYWOThVRgS-4e8bmWOTclAwLUkOUY/exec"; 
-                // --- ⚠️ 試算表 ID 已更新 ---
+                // --- ⚠️ GAS 網址已更新為您的最新網址 ---
+                const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwvdE4Xl8y5MHHPRN_Ep5zOY5GFBSc41p7vtpopQaDdxsTsVYymukBsYZfCYA7m01V4/exec"; 
+                
                 const SHEET_ID = '1u-FDoDbi50FROw4tDGrsWRnbAsJQMDdZEb1CySV1qc4';
                 const ITINERARY_GID = '1691304811';
                 const EXPENSE_GID = '146729228';
