@@ -328,7 +328,8 @@
         createApp({
             setup() {
                 const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxUaoB_wXAYkZh3cW0S5HB_41Gw4wYI-mBkMjIYWOThVRgS-4e8bmWOTclAwLUkOUY/exec"; 
-                const SHEET_ID = '19REJaflyB3ipjTvvQABcAMe95wjiBKwQNf7eH8J97N8';
+                // --- ⚠️ 試算表 ID 已更新 ---
+                const SHEET_ID = '1u-FDoDbi50FROw4tDGrsWRnbAsJQMDdZEb1CySV1qc4';
                 const ITINERARY_GID = '1691304811';
                 const EXPENSE_GID = '146729228';
 
@@ -408,7 +409,6 @@
                         showToast.value = true;
                         setTimeout(() => showToast.value = false, 2500);
                         
-                        // 立即重新抓取確保資料一致性
                         setTimeout(fetchItineraryFromSheet, 2000);
                     } catch (e) {
                         toastMsg.value = "同步失敗，請檢查網址";
@@ -471,7 +471,6 @@
                         if (rows.length < 1) return;
                         let count = 0;
 
-                        // 位置對應法解析
                         for (let i = 1; i < rows.length; i++) {
                             const row = rows[i];
                             const timeStr = row[0] || '--:--'; 
@@ -484,7 +483,6 @@
                             }
                         }
 
-                        // 排序
                         newItinerary.forEach(day => {
                             day.plans.sort((a, b) => {
                                 const score = (t) => {
