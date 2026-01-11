@@ -362,7 +362,6 @@
 
                 const newExpense = ref({ id: null, date: new Date().toISOString().split('T')[0], item: '', amount: null, amountTwd: null, payer: 'KCY', remark: '' });
 
-                // --- 行程編輯專用 ---
                 const isEditingPlan = ref(false);
                 const editingPlanIndex = ref(-1);
                 const editPlanBuffer = ref({ time: '', title: '', oldTime: '' });
@@ -388,21 +387,19 @@
                     const targetDate = itinerary.value[selectedDay.value].date;
                     
                     try {
-                        // 1. 同步回 Google 試算表
                         await fetch(GAS_WEB_APP_URL, {
                             method: "POST",
                             mode: "no-cors",
                             headers: { "Content-Type": "text/plain" },
                             body: JSON.stringify({
                                 type: 'itinerary',
-                                targetDate: targetDate, // 5/30
-                                oldTime: plan.oldTime,  // 原本 A 欄時間
-                                time: plan.time,        // 新 A 欄時間
-                                title: plan.title       // 新格子內容
+                                targetDate: targetDate, 
+                                oldTime: plan.oldTime,  
+                                time: plan.time,        
+                                title: plan.title       
                             })
                         });
 
-                        // 2. 本地即時更新
                         itinerary.value[selectedDay.value].plans[editingPlanIndex.value] = { 
                             time: plan.time, title: plan.title 
                         };
@@ -478,29 +475,22 @@
                     newExpense.value = { id: null, date: new Date().toISOString().split('T')[0], item: '', amount: null, amountTwd: null, payer: 'KCY', remark: '' };
                 };
 
-                // --- 🚀 核心優化：橫向佈局強制對應解析器 ---
                 const fetchItineraryFromSheet = async () => {
                     syncStatus.value = 'loading';
                     const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${ITINERARY_GID}&t=${Date.now()}`;
                     try {
                         const res = await fetch(url); const csv = await res.text(); const rows = parseCSV(csv);
-                        
                         const newItinerary = [
                             { date: '5/30', dayName: 'SAT', plans: [] }, { date: '5/31', dayName: 'SUN', plans: [] },
                             { date: '6/1', dayName: 'MON', plans: [] }, { date: '6/2', dayName: 'TUE', plans: [] },
                             { date: '6/3', dayName: 'WED', plans: [] }, { date: '6/4', dayName: 'THU', plans: [] },
                             { date: '6/5', dayName: 'FRI', plans: [] }, { date: '6/6', dayName: 'SAT', plans: [] }
                         ];
-
                         if (rows.length < 1) return;
                         let count = 0;
-
-                        // 從第 2 列開始解析 (Index 1)
                         for (let i = 1; i < rows.length; i++) {
                             const row = rows[i];
-                            const timeStr = row[0] || '--:--'; // A 欄: 時間
-                            
-                            // 遍歷 B(1) 到 I(8) 欄位
+                            const timeStr = row[0] || '--:--';
                             for (let colIdx = 1; colIdx <= 8; colIdx++) {
                                 const title = row[colIdx];
                                 if (title && title.trim() !== "" && newItinerary[colIdx-1]) {
@@ -509,8 +499,6 @@
                                 }
                             }
                         }
-
-                        // 針對每一天的時間進行排序
                         newItinerary.forEach(day => {
                             day.plans.sort((a, b) => {
                                 const score = (t) => {
@@ -520,7 +508,6 @@
                                 return score(a.time) - score(b.time);
                             });
                         });
-                        
                         itinerary.value = newItinerary; syncCount.value = count; syncStatus.value = 'success';
                     } catch (e) { syncStatus.value = 'error'; }
                     finally { setTimeout(() => syncStatus.value = 'idle', 2000); nextTick(() => lucide.createIcons()); }
@@ -542,7 +529,9 @@
                 };
 
                 const openExternal = (q) => {
-                    const url = q.startsWith('http') ? q : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
+                    // --- 智慧判斷：如果是 "回飯店"，自動導向至 CROOM 飯店名稱 ---
+                    const targetQuery = (q === '回飯店') ? '博多祇園櫛田神社前西鐵克魯姆酒店' : q;
+                    const url = targetQuery.startsWith('http') ? targetQuery : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(targetQuery)}`;
                     window.open(url, '_blank');
                 };
 
