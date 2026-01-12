@@ -1,18 +1,17 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-    <!-- 1. 解決亂碼關鍵：UTF-8 必須放在最前面 -->
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>福岡 2026 | Kuromi 家族大冒險</title>
 
-    <!-- 2. 外部資源載入 (React, Tailwind, Firebase, Lucide) -->
+    <!-- 核心庫引入 -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- 使用 Firebase 相容版 SDK (Compat) 確保在單一 HTML 中執行穩定 -->
+    <!-- Firebase SDK (相容版) -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
@@ -20,7 +19,6 @@
     <script src="https://unpkg.com/lucide@latest"></script>
     
     <style>
-        /* 引入可愛風格的快樂體 */
         @import url('https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&display=swap');
         
         :root {
@@ -39,14 +37,12 @@
             -webkit-tap-highlight-color: transparent;
         }
 
-        /* 漸層與背景圖案 */
         .kuromi-gradient { background: linear-gradient(135deg, #9D76C1 0%, #765898 100%); }
         .bg-pattern { 
             background-image: radial-gradient(var(--kuromi-purple) 0.5px, transparent 0.5px); 
             background-size: 20px 20px; 
         }
 
-        /* 庫洛米風格卡片 */
         .kuromi-card { 
             background: white; 
             border-radius: 40px; 
@@ -61,6 +57,12 @@
         }
 
         .hide-scrollbar::-webkit-scrollbar { display: none; }
+        
+        @keyframes spin-slow {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        .animate-spin-slow { animation: spin-slow 3s linear infinite; }
     </style>
 </head>
 <body class="bg-pattern">
@@ -69,35 +71,43 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo } = React;
 
-        // --- (1) Firebase 雲端連線設定 ---
-        let firebaseConfig = {};
-        try {
-            if (typeof __firebase_config !== 'undefined') {
-                firebaseConfig = JSON.parse(__firebase_config);
-            } else {
-                // ⚠️ 如果您看到「設定缺失」畫面，請在此處貼上您 Firebase 專案的 SDK 配置內容
-                firebaseConfig = {
-                    apiKey: "",
-                    authDomain: "",
-                    projectId: "",
-                    storageBucket: "",
-                    messagingSenderId: "",
-                    appId: ""
-                };
-            }
-        } catch (e) { console.error("Firebase config error"); }
+        // ==========================================================
+        // 🛠️ 填寫區：請將您從 Firebase 控制台複製的內容貼在下方
+        // ==========================================================
+        const firebaseConfig = {
+  apiKey: "AIzaSyCAb0qAoOh0A88-wuRz-Gk_cU5f2vIOd3c",
+  authDomain: "fukuoka-2026.firebaseapp.com",
+  projectId: "fukuoka-2026",
+  storageBucket: "fukuoka-2026.firebasestorage.app",
+  messagingSenderId: "545717934606",
+  appId: "1:545717934606:web:0d6ba3dd86addc76a77a5f",
+  measurementId: "G-8VYS78QR7N"
+};
+        // ==========================================================
 
-        // 初始化檢查
-        const isConfigValid = firebaseConfig && firebaseConfig.apiKey;
-        if (isConfigValid) {
-            if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+        // --- 初始化邏輯 (防止在 GitHub 環境 crash) ---
+        let finalConfig = null;
+        try {
+            if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+                finalConfig = JSON.parse(__firebase_config);
+            } else {
+                finalConfig = mySecretFirebaseConfig;
+            }
+        } catch (e) { 
+            finalConfig = mySecretFirebaseConfig; 
+        }
+
+        // 判斷是否已經正確填寫金鑰
+        const isConfigValid = finalConfig && finalConfig.apiKey && finalConfig.apiKey.length > 15;
+        
+        if (isConfigValid && !firebase.apps.length) {
+            firebase.initializeApp(finalConfig);
         }
 
         const auth = isConfigValid ? firebase.auth() : null;
         const db = isConfigValid ? firebase.firestore() : null;
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'fukuoka-trip-demo';
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'fukuoka-trip-final';
 
-        // 圖標組件
         const Icon = ({ name, className = "w-6 h-6", size }) => {
             useEffect(() => { if (window.lucide) window.lucide.createIcons(); }, [name]);
             return <i data-lucide={name} className={className} style={size ? {width:size, height:size} : {}}></i>;
@@ -105,19 +115,22 @@
 
         const App = () => {
             const [user, setUser] = useState(null);
-            const [activeTab, setActiveTab] = useState('expense'); // 預設為記帳頁
+            const [activeTab, setActiveTab] = useState('expense');
             const [expenses, setExpenses] = useState([]);
             const [fxInput, setFxInput] = useState('');
             const exchangeRate = 0.211;
-            const [newExpense, setNewExpense] = useState({ date: new Date().toISOString().split('T')[0], payer: 'KCY', item: '', amount: '' });
+            const [newExpense, setNewExpense] = useState({ 
+                date: new Date().toISOString().split('T')[0], 
+                payer: 'KCY', item: '', amount: '' 
+            });
             const [isSaving, setIsSaving] = useState(false);
             const [toast, setToast] = useState({ show: false, msg: '' });
 
             const members = ['KCY', 'Ruby', 'YSL', 'Tsai'];
 
-            // 1. 登入邏輯
+            // 1. 匿名登入
             useEffect(() => {
-                if (!isConfigValid) return;
+                if (!isConfigValid || !auth) return;
                 const initAuth = async () => {
                     try {
                         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
@@ -125,24 +138,26 @@
                         } else {
                             await auth.signInAnonymously();
                         }
-                    } catch (e) { console.error("Auth error", e); }
+                    } catch (e) { 
+                        console.error("Auth error: 請確保 Firebase 已開啟『匿名登入』功能"); 
+                    }
                 };
                 initAuth();
                 const unsubscribe = auth.onAuthStateChanged(setUser);
                 return () => unsubscribe();
             }, []);
 
-            // 2. 即時雲端監聽：僅監聽支出資料
+            // 2. 即時監聽雲端資料
             useEffect(() => {
                 if (!user || !db) return;
                 const path = `artifacts/${appId}/public/data`;
-                
                 const unsubExpense = db.collection(`${path}/expenses`).onSnapshot(snap => {
                     const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
                     setExpenses(docs.sort((a, b) => new Date(b.date) - new Date(a.date)));
+                }, (err) => {
+                    console.error("Firestore error: 請確保資料庫規則已設為『測試模式』或允許讀寫");
                 });
-
-                return () => { unsubExpense(); };
+                return () => unsubExpense();
             }, [user]);
 
             const showToast = (msg) => {
@@ -162,62 +177,71 @@
                         createdAt: firebase.firestore.FieldValue.serverTimestamp()
                     });
                     setNewExpense({ ...newExpense, item: '', amount: '' });
-                    showToast("記帳成功 💜");
+                    showToast("已存入雲端 💜");
+                } catch (e) {
+                    alert("儲存失敗，請檢查網路或 Firebase 設定");
                 } finally { setIsSaving(false); }
             };
 
             const deleteItem = async (id) => {
-                if (!window.confirm("確定刪除嗎？")) return;
+                if (!window.confirm("確定要刪除嗎？")) return;
                 await db.doc(`artifacts/${appId}/public/data/expenses/${id}`).delete();
-                showToast("已刪除開銷資料");
+                showToast("已從雲端移除");
             };
 
+            // 如果設定不完全，顯示教學引導
             if (!isConfigValid) {
                 return (
-                    <div className="flex flex-col items-center justify-center min-h-screen bg-white p-12 text-center">
-                        <Icon name="alert-triangle" className="w-24 h-24 text-purple-400 mb-8" />
-                        <h1 className="text-4xl font-black text-purple-900 mb-6">設定缺失</h1>
-                        <p className="text-purple-600 leading-relaxed text-xl">
+                    <div className="flex flex-col items-center justify-center min-h-screen bg-white p-10 text-center animate-in fade-in duration-700">
+                        <div className="bg-purple-100 p-8 rounded-full mb-8">
+                            <Icon name="settings" className="w-16 h-16 text-purple-500 animate-spin-slow" />
+                        </div>
+                        <h1 className="text-3xl font-black text-slate-800 mb-4">尚未完成雲端設定</h1>
+                        <p className="text-slate-500 mb-8 leading-relaxed">
                             您正嘗試在 GitHub 執行此 App。<br/>
-                            請在 index.html 程式碼中填寫您的 <br/>
-                            <b>firebaseConfig</b>，App 才能連接雲端。
+                            請在 index.html 檔案上方填寫您的 <br/>
+                            <span className="font-bold text-purple-600 underline">firebaseConfig</span> 金鑰資訊。
                         </p>
+                        <div className="bg-slate-50 p-6 rounded-3xl text-left text-sm space-y-3 border-2 border-slate-100 max-w-sm">
+                           <div className="flex gap-3"><span className="bg-purple-500 text-white w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0">1</span> <span>進入 Firebase 控制台專案設定</span></div>
+                           <div className="flex gap-3"><span className="bg-purple-500 text-white w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0">2</span> <span>複製 SDK 設定中的 <b>Config</b> 大括號內容</span></div>
+                           <div className="flex gap-3"><span className="bg-purple-500 text-white w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0">3</span> <span>貼回代碼中的 <b>mySecretFirebaseConfig</b></span></div>
+                           <div className="flex gap-3"><span className="bg-purple-500 text-white w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0">4</span> <span>記得開啟 <b>Firestore</b> 與 <b>匿名登入</b></span></div>
+                        </div>
                     </div>
                 );
             }
 
             return (
                 <div className="max-w-md mx-auto min-h-screen relative pb-32">
-                    {/* Toast 提示 */}
+                    {/* Toast 成功提示 */}
                     <div className={`fixed top-10 left-1/2 -translate-x-1/2 z-[200] transition-all duration-500 ${toast.show ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-10 pointer-events-none'}`}>
                         <div className="bg-black/80 text-white px-8 py-4 rounded-full flex items-center gap-3 shadow-2xl border border-purple-400 backdrop-blur-md">
                             <Icon name="check-circle-2" className="text-pink-400 w-6 h-6" />
-                            <span className="font-bold text-lg tracking-widest">{toast.msg}</span>
+                            <span className="font-bold text-lg">{toast.msg}</span>
                         </div>
                     </div>
 
-                    {/* Header */}
-                    <header className="kuromi-gradient text-white p-10 pt-16 rounded-b-[80px] shadow-2xl relative overflow-hidden text-center">
+                    <header className="kuromi-gradient text-white p-10 pt-16 rounded-b-[80px] shadow-2xl text-center relative overflow-hidden">
                         <h1 className="text-6xl font-bold tracking-tighter" style={{ textShadow: '4px 4px 0px rgba(0,0,0,0.2)' }}>福岡 2026</h1>
                         <div className="flex items-center justify-center gap-3 mt-4">
-                            <span className="bg-black/30 px-5 py-2 rounded-full text-xs font-bold tracking-[0.3em]">KCY FAMILY</span>
+                            <span className="bg-black/30 px-5 py-2 rounded-full text-xs font-bold uppercase tracking-[0.3em]">KCY FAMILY</span>
                             <Icon name="heart" className="w-6 h-6 fill-pink-400 text-pink-400 animate-pulse" />
                         </div>
                     </header>
 
-                    {/* 導覽頁籤 */}
                     <nav className="flex bg-white/95 backdrop-blur-lg sticky top-0 z-50 px-8 mt-4 border-b-8 border-purple-100 shadow-lg">
                         <button onClick={() => setActiveTab('expense')} className={`flex-1 py-7 font-black text-xl transition-all ${activeTab === 'expense' ? 'text-[#9D76C1] border-b-8 border-[#9D76C1]' : 'text-slate-400'}`}>記帳</button>
                         <button onClick={() => setActiveTab('tools')} className={`flex-1 py-7 font-black text-xl transition-all ${activeTab === 'tools' ? 'text-[#9D76C1] border-b-8 border-[#9D76C1]' : 'text-slate-400'}`}>工具</button>
                     </nav>
 
                     <div className="px-8 py-10">
-                        {/* 1. 記帳分頁 */}
                         {activeTab === 'expense' && (
                             <div className="space-y-12 animate-in fade-in duration-500">
+                                {/* 匯率換算卡片 */}
                                 <div className="bg-[#2D2727] text-white p-12 rounded-[60px] shadow-2xl relative overflow-hidden">
                                     <div className="absolute -right-6 -bottom-6 opacity-10 rotate-12"><Icon name="coins" size={200} /></div>
-                                    <p className="text-md text-[#FF91C1] font-black uppercase tracking-[0.3em] mb-8">JPY ⮕ TWD 即時匯率</p>
+                                    <p className="text-md text-[#FF91C1] font-black uppercase tracking-[0.3em] mb-8">JPY ⮕ TWD 即時換算</p>
                                     <div className="flex items-center justify-between">
                                         <input type="number" value={fxInput} onChange={(e) => setFxInput(e.target.value)} placeholder="0" className="flex-1 bg-transparent text-7xl font-black focus:outline-none placeholder:text-white/10 tracking-tighter" />
                                         <div className="text-right">
@@ -227,10 +251,11 @@
                                     </div>
                                 </div>
                                 
-                                <div className="bg-white rounded-[60px] p-12 space-y-10 shadow-2xl border-[8px] border-purple-100">
+                                {/* 新增支出表單 */}
+                                <div id="expense-form" className="bg-white rounded-[60px] p-12 space-y-10 shadow-2xl border-[8px] border-purple-100">
                                     <div className="flex justify-between items-center text-slate-800">
                                         <h3 className="text-3xl font-black italic underline decoration-pink-300">新增支出 💜</h3>
-                                        <select value={newExpense.payer} onChange={(e) => setNewExpense({...newExpense, payer: e.target.value})} className="bg-purple-100 rounded-[30px] px-8 py-4 font-black text-lg text-[#9D76C1] outline-none">
+                                        <select value={newExpense.payer} onChange={(e) => setNewExpense({...newExpense, payer: e.target.value})} className="bg-purple-100 rounded-[30px] px-8 py-4 font-black text-lg text-[#9D76C1] outline-none border-none shadow-inner">
                                             {members.map(m => <option key={m}>{m}</option>)}
                                         </select>
                                     </div>
@@ -239,13 +264,14 @@
                                         <input placeholder="買了什麼好東西？" value={newExpense.item} onChange={(e) => setNewExpense({...newExpense, item: e.target.value})} className="w-full border-b-6 border-purple-50 pb-6 text-2xl font-black focus:border-purple-400 outline-none" />
                                         <input type="number" placeholder="日幣金額 ¥" value={newExpense.amount} onChange={(e) => setNewExpense({...newExpense, amount: e.target.value})} className="w-full border-4 border-purple-50 p-7 text-3xl font-black focus:border-purple-400 outline-none bg-slate-50 rounded-[40px]" />
                                     </div>
-                                    <button onClick={addExpense} disabled={isSaving} className="w-full kuromi-gradient text-white py-10 rounded-[50px] font-black text-3xl shadow-xl active:scale-95">
-                                        {isSaving ? <Icon name="refresh-cw" className="animate-spin mx-auto" /> : "儲存到雲端 💜"}
+                                    <button onClick={addExpense} disabled={isSaving || !user} className="w-full kuromi-gradient text-white py-10 rounded-[50px] font-black text-3xl shadow-xl active:scale-95 flex items-center justify-center gap-4 disabled:opacity-50">
+                                        {isSaving ? <Icon name="refresh-cw" className="animate-spin" /> : "紀錄到雲端 💜"}
                                     </button>
                                 </div>
 
+                                {/* 開銷明細列表 */}
                                 {expenses.map(ex => (
-                                    <div key={ex.id} className="kuromi-card p-10 flex justify-between items-center border-l-[25px] border-l-[#9D76C1] shadow-xl">
+                                    <div key={ex.id} className="kuromi-card p-10 flex justify-between items-center border-l-[25px] border-l-[#9D76C1] shadow-xl animate-in slide-in-from-right">
                                         <div>
                                             <div className="flex items-center gap-4 mb-3">
                                                 <span className="text-sm font-black text-white bg-slate-800 px-4 py-1.5 rounded-xl">{ex.date}</span>
@@ -265,21 +291,24 @@
                             </div>
                         )}
 
-                        {/* 2. 工具分頁 */}
                         {activeTab === 'tools' && (
-                            <div className="space-y-16 animate-in fade-in duration-500">
-                                <section className="bg-white rounded-[60px] border-[10px] border-[#9D76C1] p-12 shadow-2xl relative text-center">
+                            <div className="space-y-16 animate-in fade-in duration-500 text-center">
+                                {/* 飯店資訊 */}
+                                <section className="bg-white rounded-[60px] border-[10px] border-[#9D76C1] p-12 shadow-2xl relative">
                                     <Icon name="hotel" className="w-24 h-24 text-purple-200 animate-bounce mx-auto mb-4" />
                                     <h3 className="text-5xl font-black mb-4 text-[#2D2727]">博多西鐵 CROOM</h3>
                                     <p className="text-md text-slate-400 mb-12 font-black uppercase tracking-[0.2em]">櫛田神社前站 4 號出口對面</p>
                                     <div className="flex gap-8">
                                         <button onClick={() => window.open('https://www.google.com/maps/search/?api=1&query=博多祇園櫛田神社前西鐵克魯姆酒店','_blank')} className="flex-1 kuromi-gradient text-white py-9 rounded-[45px] font-black text-2xl shadow-2xl active:scale-95 transition-all">地圖 📍</button>
-                                        <a href="tel:092-235-0311" className="flex-1 border-6 border-[#2D2727] text-center py-9 rounded-[45px] font-black text-2xl active:scale-95 transition-all">撥打 📞</a>
+                                        <a href="tel:092-235-0311" className="flex-1 border-6 border-[#2D2727] text-center py-9 rounded-[45px] font-black text-2xl active:scale-95 transition-all shadow-md">撥打 📞</a>
                                     </div>
                                 </section>
+
+                                {/* 連線診斷器 */}
                                 <section className="bg-slate-100 p-12 rounded-[60px] border-4 border-dashed border-slate-300 opacity-60">
                                     <p className="font-black text-slate-500 text-center flex items-center justify-center gap-4 text-xl tracking-[0.1em]">
-                                        <Icon name="shield-check" className="w-8 h-8 text-green-500" /> 雲端連線正常
+                                        <Icon name="shield-check" className={user ? "text-green-500" : "text-slate-400"} /> 
+                                        {user ? "雲端連線正常運作中" : "正在嘗試連接雲端..."}
                                     </p>
                                     <p className="text-xs text-slate-400 text-center mt-5 uppercase tracking-[0.4em] font-black">App ID: {appId}</p>
                                 </section>
