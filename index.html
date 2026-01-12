@@ -191,11 +191,17 @@
                 return () => { unsubExp(); unsubItinerary(); };
             }, [user]);
 
+            // --- 強化後的排序邏輯 ---
             const currentDayPlans = useMemo(() => {
                 const target = dates[selectedDayIdx].date;
                 return itineraryData
                     .filter(p => p.targetDate === target)
-                    .sort((a, b) => (a.time || "99:99").localeCompare(b.time || "99:99"));
+                    .sort((a, b) => {
+                        // 將時間格式統一（例如 9:00 補為 09:00）後進行字串比較
+                        const timeA = (a.time || "99:99").padStart(5, '0');
+                        const timeB = (b.time || "99:99").padStart(5, '0');
+                        return timeA.localeCompare(timeB);
+                    });
             }, [itineraryData, selectedDayIdx]);
 
             const showToast = (msg) => {
@@ -223,6 +229,7 @@
                 if (!editPlanBuffer.time || !editPlanBuffer.title || !user) return;
                 setIsSaving(true);
                 try {
+                    // 若有 editingPlan 則使用其原有 id 進行覆蓋更新，否則新建 id
                     const id = editingPlan ? editingPlan.id : `plan-${Date.now()}`;
                     await db.collection(`artifacts/${appId}/public/data/itinerary`).doc(id).set({
                         ...editPlanBuffer,
@@ -230,8 +237,15 @@
                         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                     }, { merge: true });
                     setIsEditingPlan(false);
+                    setEditingPlan(null); // 存檔完清空編輯狀態
                     showToast("行程同步成功 💜");
                 } finally { setIsSaving(false); }
+            };
+
+            const handleEditPlan = (plan) => {
+                setEditingPlan(plan);
+                setEditPlanBuffer({ time: plan.time, title: plan.title });
+                setIsEditingPlan(true);
             };
 
             const deletePlan = async (id) => {
@@ -281,7 +295,10 @@
                         {activeTab === 'itinerary' && (
                             itineraryView === 'list' ? (
                                 <div className="space-y-6 animate-in fade-in">
-                                    <h2 className="text-xl font-black text-slate-800 px-1">冒險計畫表 💜</h2>
+                                    <h2 className="text-xl font-black text-slate-800 px-1 flex justify-between items-center">
+                                        冒險計畫表 💜
+                                        {!user && <span className="text-[10px] animate-pulse">連線中...</span>}
+                                    </h2>
                                     <div className="grid grid-cols-2 gap-4">
                                         {dates.map((day, idx) => (
                                             <div key={day.date} onClick={() => { setSelectedDayIdx(idx); setItineraryView('detail'); }} 
@@ -321,13 +338,22 @@
                                                 <div className="flex justify-between items-center mb-4">
                                                     <span className="text-xs font-black text-white bg-slate-800 px-3 py-1 rounded-full">{plan.time}</span>
                                                     <div className="flex gap-2">
-                                                        <button onClick={() => handleEditPlan(plan)} className="p-2 bg-purple-50 text-purple-400 rounded-full active:scale-75 border border-purple-100"><Icon name="pencil" size={16} /></button>
-                                                        <button onClick={() => deletePlan(plan.id)} className="p-2 bg-red-50 text-red-400 rounded-full active:scale-75 border border-red-100"><Icon name="trash" size={16} /></button>
+                                                        <button onClick={(e) => { e.stopPropagation(); handleEditPlan(plan); }} className="p-2 bg-purple-50 text-purple-400 rounded-full active:scale-75 border border-purple-100">
+                                                            <Icon name="pencil" size={16} />
+                                                        </button>
+                                                        <button onClick={(e) => { e.stopPropagation(); deletePlan(plan.id); }} className="p-2 bg-red-50 text-red-400 rounded-full active:scale-75 border border-red-100">
+                                                            <Icon name="trash" size={16} />
+                                                        </button>
                                                     </div>
                                                 </div>
                                                 <h3 className="text-xl font-black text-slate-700 leading-tight">{plan.title}</h3>
                                             </div>
                                         ))}
+                                        {currentDayPlans.length === 0 && (
+                                            <div className="py-20 text-center opacity-30 text-slate-400 font-black">
+                                                目前尚無行程計畫 💜
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             )
@@ -425,24 +451,38 @@
                         )}
                     </div>
 
-                    {/* 行程編輯彈窗 - 縮小優化 */}
+                    {/* 行程編輯彈窗 - 修正編輯與排序邏輯 */}
                     {isEditingPlan && (
                         <div className="fixed inset-0 z-[110] modal-mask flex items-center justify-center p-6">
                             <div className="bg-white w-full rounded-[40px] p-10 shadow-2xl space-y-8 border-8 border-purple-50 animate-in zoom-in">
-                                <h3 className="text-2xl font-black text-slate-800 underline decoration-pink-300 decoration-4 underline-offset-4">編輯冒險 ✏️</h3>
-                                <div className="space-y-6">
+                                <h3 className="text-2xl font-black text-slate-800 underline decoration-pink-300 decoration-4 underline-offset-4">
+                                    {editingPlan ? '修改冒險 ✏️' : '新增冒險 ✏️'}
+                                </h3>
+                                <div className="space-y-6 text-left">
                                     <div>
                                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">預計時間</label>
-                                        <input value={editPlanBuffer.time} onChange={(e) => setEditPlanBuffer({...editPlanBuffer, time: e.target.value})} placeholder="14:30" className="w-full border-2 border-purple-50 p-4 text-2xl font-black focus:border-purple-400 outline-none bg-slate-50 rounded-2xl mt-1" />
+                                        <input 
+                                            value={editPlanBuffer.time} 
+                                            onChange={(e) => setEditPlanBuffer({...editPlanBuffer, time: e.target.value})} 
+                                            placeholder="14:30" 
+                                            className="w-full border-2 border-purple-50 p-4 text-2xl font-black focus:border-purple-400 outline-none bg-slate-50 rounded-2xl mt-1" 
+                                        />
                                     </div>
                                     <div>
                                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">計畫內容</label>
-                                        <input value={editPlanBuffer.title} onChange={(e) => setEditPlanBuffer({...editPlanBuffer, title: e.target.value})} placeholder="行程名稱" className="w-full border-2 border-purple-50 p-4 text-2xl font-black focus:border-purple-400 outline-none bg-slate-50 rounded-2xl mt-1" />
+                                        <input 
+                                            value={editPlanBuffer.title} 
+                                            onChange={(e) => setEditPlanBuffer({...editPlanBuffer, title: e.target.value})} 
+                                            placeholder="要去哪裡呢？" 
+                                            className="w-full border-2 border-purple-50 p-4 text-2xl font-black focus:border-purple-400 outline-none bg-slate-50 rounded-2xl mt-1" 
+                                        />
                                     </div>
                                 </div>
                                 <div className="flex gap-4 pt-2">
-                                    <button onClick={savePlan} disabled={isSaving} className="flex-1 kuromi-gradient text-white py-5 rounded-full font-black text-xl shadow-lg active:scale-95">儲存 💜</button>
-                                    <button onClick={() => setIsEditingPlan(false)} className="px-8 bg-slate-100 text-slate-400 rounded-full font-black">取消</button>
+                                    <button onClick={savePlan} disabled={isSaving} className="flex-1 kuromi-gradient text-white py-5 rounded-full font-black text-xl shadow-lg active:scale-95 disabled:opacity-50">
+                                        {isSaving ? <Icon name="refresh" className="animate-spin-custom mx-auto" size={24} /> : "儲存 💜"}
+                                    </button>
+                                    <button onClick={() => { setIsEditingPlan(false); setEditingPlan(null); }} className="px-8 bg-slate-100 text-slate-400 rounded-full font-black">取消</button>
                                 </div>
                             </div>
                         </div>
