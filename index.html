@@ -150,7 +150,7 @@
                     </div>
                     <div v-else class="py-32 text-center opacity-20"><i data-lucide="sparkles" class="w-20 h-20 mx-auto mb-6 text-purple-200"></i><p class="font-black text-xl uppercase">目前沒計畫</p></div>
 
-                    <!-- 彈窗 -->
+                    <!-- 編輯行程彈窗 -->
                     <div v-if="isEditingPlan" class="fixed inset-0 z-[110] modal-mask flex items-center justify-center p-8">
                         <div class="bg-white w-full rounded-[40px] p-8 shadow-2xl space-y-6 border-4 border-purple-200">
                             <h3 class="text-2xl font-black text-slate-800 flex items-center gap-2 italic">計畫內容 ✏️</h3>
@@ -195,6 +195,15 @@
                 </div>
                 <button @click="addExpense" :disabled="isSaving" class="w-full kuromi-gradient text-white py-6 rounded-[40px] font-black text-xl shadow-xl flex items-center justify-center gap-3"><i v-if="isSaving" data-lucide="loader-2" class="animate-spin"></i> 紀錄花費 💜</button>
             </div>
+            
+            <div class="space-y-6 pb-20">
+                <div v-for="(ex, idx) in expenses" :key="ex.id" class="kuromi-card p-8 flex flex-col shadow-xl border-l-[20px] border-[#9D76C1]">
+                    <div class="flex justify-between items-center">
+                        <div><div class="flex items-center gap-3 mb-1"><span class="text-xs font-black text-white bg-slate-800 px-3 py-1 rounded-lg">{{ex.date}}</span><span class="text-sm text-slate-400 font-black tracking-widest">{{ex.payer}}</span></div><p class="text-2xl font-black text-slate-700">{{ex.item}}</p></div>
+                        <div class="text-right"><p class="text-3xl font-black text-slate-800">¥{{ex.amount.toLocaleString()}}</p><p class="text-sm font-black text-pink-400">NT${{ex.amountTwd.toLocaleString()}}</p></div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- 3. 旅行工具與偵錯 -->
@@ -225,7 +234,7 @@
         const { createApp, ref, onMounted, nextTick } = Vue;
         createApp({
             setup() {
-                // ⚠️ 請填入您的最新 GAS /exec 網址
+                // ⚠️ 請確認 GAS 網址是否正確
                 const GAS_URL = "https://script.google.com/macros/s/AKfycbwvdE4Xl8y5MHHPRN_Ep5zOY5GFBSc41p7vtpopQaDdxsTsVYymukBsYZfCYA7m01V4/exec"; 
 
                 const activeTab = ref('itinerary');
@@ -259,14 +268,14 @@
                 const startAddPlan = () => { editingPlanIndex.value = -1; editPlanBuffer.value = { time: '', title: '', oldTime: '' }; isEditingPlan.value = true; nextTick(()=>lucide.createIcons()); };
                 const startEditPlan = (idx) => { editingPlanIndex.value = idx; const p = itinerary.value[selectedDay.value].plans[idx]; editPlanBuffer.value = { ...p, oldTime: p.time }; isEditingPlan.value = true; nextTick(()=>lucide.createIcons()); };
 
-                // 🚀 【終極強化】雙向同步 - 讀取全部資料
+                // 🚀 【雙向同步】讀取全部資料 (透過 doGet)
                 const syncAllData = async () => {
                     syncStatus.value = 'loading';
                     try {
                         const res = await fetch(GAS_URL);
                         const data = await res.json();
                         
-                        // 1. 解析行程 (橫向表格轉縱向對應)
+                        // 1. 解析行程
                         const rows = data.itinerary;
                         if (rows && rows.length > 0) {
                             debugHeaders.value = rows[0].join(" | ");
@@ -279,12 +288,12 @@
                             let count = 0;
                             for (let i = 1; i < rows.length; i++) {
                                 const row = rows[i];
-                                const timeStr = row[0] || '';
+                                const timeStr = row[0] ? row[0].toString().trim() : '';
                                 if (!timeStr) continue;
                                 for (let j = 1; j <= 8; j++) {
                                     const title = row[j];
                                     if (title && title.toString().trim() !== "") {
-                                        newItinerary[j-1].plans.push({ time: timeStr.toString(), title: title.toString() });
+                                        newItinerary[j-1].plans.push({ time: timeStr, title: title.toString() });
                                         count++;
                                     }
                                 }
@@ -296,7 +305,7 @@
 
                         // 2. 解析記帳
                         if (data.expenses && data.expenses.length > 1) {
-                            const exRows = data.expenses.slice(1); // 跳過標題
+                            const exRows = data.expenses.slice(1);
                             expenses.value = exRows.map(r => ({ date: r[0], payer: r[1], item: r[2], amount: r[3], amountTwd: r[4], id: r[5] })).reverse();
                         }
                         
@@ -305,21 +314,24 @@
                     finally { setTimeout(()=>syncStatus.value='idle', 2000); nextTick(()=>lucide.createIcons()); }
                 };
 
-                // 🚀 【終極強化】雙向同步 - 儲存資料
+                // 🚀 【雙向同步】儲存資料 (透過 doPost)
                 const savePlanChange = async () => {
                     if (!editPlanBuffer.value.title || !editPlanBuffer.value.time) return;
                     isSaving.value = true;
                     const targetDate = itinerary.value[selectedDay.value].date;
                     const isNew = editingPlanIndex.value === -1;
                     try {
+                        // 使用 text/plain 避免 preflight OPTIONS 請求失敗
                         await fetch(GAS_URL, {
                             method: "POST",
+                            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                             body: JSON.stringify({ type: 'itinerary', ...editPlanBuffer.value, targetDate, isNew })
                         });
                         toastMsg.value = "同步雲端成功！💜"; showToast.value = true;
                         setTimeout(()=>showToast.value=false, 3000);
                         isEditingPlan.value = false;
-                        await syncAllData(); // 立即重新抓取
+                        // 延遲重整，給 GAS 一點寫入時間
+                        setTimeout(syncAllData, 2000);
                     } catch (e) { toastMsg.value = "雲端繁忙，請稍後"; showToast.value = true; }
                     finally { isSaving.value = false; }
                 };
@@ -329,10 +341,14 @@
                     isSaving.value = true;
                     newExpense.value.id = 'EXP-' + Date.now();
                     try {
-                        await fetch(GAS_URL, { method: "POST", body: JSON.stringify({ type: 'expense', ...newExpense.value }) });
+                        await fetch(GAS_URL, { 
+                            method: "POST", 
+                            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                            body: JSON.stringify({ type: 'expense', ...newExpense.value }) 
+                        });
                         toastMsg.value = "記帳成功！💜"; showToast.value = true;
                         newExpense.value.item = ''; newExpense.value.amount = null;
-                        await syncAllData();
+                        setTimeout(syncAllData, 2000);
                     } catch (e) { toastMsg.value = "連線失敗"; showToast.value = true; }
                     finally { isSaving.value = false; }
                 };
