@@ -72,20 +72,19 @@
         const { useState, useEffect, useMemo } = React;
 
         // ==========================================================
-        // 🛠️ 填寫區：請將您從 Firebase 控制台複製的內容貼在下方
+        // 🛠️ 填寫區：已經根據您提供的資訊自動填入
         // ==========================================================
-        const firebaseConfig = {
-  apiKey: "AIzaSyCAb0qAoOh0A88-wuRz-Gk_cU5f2vIOd3c",
-  authDomain: "fukuoka-2026.firebaseapp.com",
-  projectId: "fukuoka-2026",
-  storageBucket: "fukuoka-2026.firebasestorage.app",
-  messagingSenderId: "545717934606",
-  appId: "1:545717934606:web:0d6ba3dd86addc76a77a5f",
-  measurementId: "G-8VYS78QR7N"
-};
+        const mySecretFirebaseConfig = {
+            apiKey: "AIzaSyCAb0qAoOh0A88-wuRz-Gk_cU5f2vIOd3c",
+            authDomain: "fukuoka-2026.firebaseapp.com",
+            projectId: "fukuoka-2026",
+            storageBucket: "fukuoka-2026.firebasestorage.app",
+            messagingSenderId: "545717934606",
+            appId: "1:545717934606:web:0d6ba3dd86addc76a77a5f"
+        };
         // ==========================================================
 
-        // --- 初始化邏輯 (防止在 GitHub 環境 crash) ---
+        // --- 初始化邏輯 ---
         let finalConfig = null;
         try {
             if (typeof __firebase_config !== 'undefined' && __firebase_config) {
@@ -97,7 +96,6 @@
             finalConfig = mySecretFirebaseConfig; 
         }
 
-        // 判斷是否已經正確填寫金鑰
         const isConfigValid = finalConfig && finalConfig.apiKey && finalConfig.apiKey.length > 15;
         
         if (isConfigValid && !firebase.apps.length) {
@@ -106,7 +104,8 @@
 
         const auth = isConfigValid ? firebase.auth() : null;
         const db = isConfigValid ? firebase.firestore() : null;
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'fukuoka-trip-final';
+        // 使用您的專案 ID 作為路徑辨識
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'fukuoka-2026';
 
         const Icon = ({ name, className = "w-6 h-6", size }) => {
             useEffect(() => { if (window.lucide) window.lucide.createIcons(); }, [name]);
@@ -189,7 +188,6 @@
                 showToast("已從雲端移除");
             };
 
-            // 如果設定不完全，顯示教學引導
             if (!isConfigValid) {
                 return (
                     <div className="flex flex-col items-center justify-center min-h-screen bg-white p-10 text-center animate-in fade-in duration-700">
@@ -202,12 +200,6 @@
                             請在 index.html 檔案上方填寫您的 <br/>
                             <span className="font-bold text-purple-600 underline">firebaseConfig</span> 金鑰資訊。
                         </p>
-                        <div className="bg-slate-50 p-6 rounded-3xl text-left text-sm space-y-3 border-2 border-slate-100 max-w-sm">
-                           <div className="flex gap-3"><span className="bg-purple-500 text-white w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0">1</span> <span>進入 Firebase 控制台專案設定</span></div>
-                           <div className="flex gap-3"><span className="bg-purple-500 text-white w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0">2</span> <span>複製 SDK 設定中的 <b>Config</b> 大括號內容</span></div>
-                           <div className="flex gap-3"><span className="bg-purple-500 text-white w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0">3</span> <span>貼回代碼中的 <b>mySecretFirebaseConfig</b></span></div>
-                           <div className="flex gap-3"><span className="bg-purple-500 text-white w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0">4</span> <span>記得開啟 <b>Firestore</b> 與 <b>匿名登入</b></span></div>
-                        </div>
                     </div>
                 );
             }
@@ -217,7 +209,7 @@
                     {/* Toast 成功提示 */}
                     <div className={`fixed top-10 left-1/2 -translate-x-1/2 z-[200] transition-all duration-500 ${toast.show ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-10 pointer-events-none'}`}>
                         <div className="bg-black/80 text-white px-8 py-4 rounded-full flex items-center gap-3 shadow-2xl border border-purple-400 backdrop-blur-md">
-                            <Icon name="check-circle-2" className="text-pink-400 w-6 h-6" />
+                            <Icon name="check-circle-2" className="text-pink-400 w-5 h-5" />
                             <span className="font-bold text-lg">{toast.msg}</span>
                         </div>
                     </div>
