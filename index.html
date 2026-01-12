@@ -2,7 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Heart, CloudSun, Navigation, PencilLine, Plus, 
   ChevronLeft, CalendarPlus, Banknote, Coins, 
-  Trash2, RefreshCw, Luggage, Hotel, Sparkles, MapPinned
+  Trash2, RefreshCw, Luggage, Hotel, Sparkles, MapPinned,
+  AlertCircle, CheckCircle2
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { 
@@ -13,7 +14,7 @@ import {
   deleteDoc, updateDoc, serverTimestamp 
 } from 'firebase/firestore';
 
-// --- Firebase 初始化 ---
+// --- Firebase 初始化 (放置於組件外以確保單例) ---
 const firebaseConfig = JSON.parse(__firebase_config);
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
@@ -23,12 +24,13 @@ const appId = typeof __app_id !== 'undefined' ? __app_id : 'fukuoka-trip-2026';
 const App = () => {
   // --- 狀態管理 ---
   const [user, setUser] = useState(null);
-  const [activeTab, setActiveTab] = useState('itinerary'); // itinerary, expense, tools
-  const [itineraryView, setItineraryView] = useState('list'); // list, detail
+  const [authError, setAuthError] = useState(null);
+  const [activeTab, setActiveTab] = useState('itinerary'); 
+  const [itineraryView, setItineraryView] = useState('list'); 
   const [selectedDayIdx, setSelectedDayIdx] = useState(0);
   const [itineraryData, setItineraryData] = useState([]);
   const [expenses, setExpenses] = useState([]);
-  const [weather, setWeather] = useState({ temp: 24, icon: 'cloud-sun' });
+  const [weather] = useState({ temp: 24, icon: 'cloud-sun' });
   const [isEditingPlan, setIsEditingPlan] = useState(false);
   const [editingPlan, setEditingPlan] = useState(null);
   const [editPlanBuffer, setEditPlanBuffer] = useState({ time: '', title: '' });
@@ -36,6 +38,7 @@ const App = () => {
   const [fxInput, setFxInput] = useState('');
   const [newExpense, setNewExpense] = useState({ date: new Date().toISOString().split('T')[0], payer: 'KCY', item: '', amount: '' });
   const [isSaving, setIsSaving] = useState(false);
+  const [toast, setToast] = useState({ show: false, msg: '' });
 
   const members = ['KCY', 'Ruby', 'YSL', 'Tsai'];
   const dates = [
@@ -45,69 +48,74 @@ const App = () => {
     { date: '6/5', dayName: 'FRI' }, { date: '6/6', dayName: 'SAT' }
   ];
 
-  // --- (1) 身份驗證 ---
+  // --- (1) 強化的身份驗證邏輯 ---
   useEffect(() => {
     const initAuth = async () => {
-      if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-        await signInWithCustomToken(auth, __initial_auth_token);
-      } else {
-        await signInAnonymously(auth);
+      try {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          await signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+          await signInAnonymously(auth);
+        }
+      } catch (err) {
+        console.error("Auth Error:", err);
+        setAuthError(err.message);
       }
     };
     initAuth();
-    const unsubscribe = onAuthStateChanged(auth, setUser);
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+      if (u) setAuthError(null);
+    });
     return () => unsubscribe();
   }, []);
 
-  // --- (2) 雲端資料監聽 (即時同步關鍵) ---
+  // --- (2) 雲端資料監聽 (確保 User 存在才啟動) ---
   useEffect(() => {
     if (!user) return;
 
+    const path = `artifacts/${appId}/public/data`;
+    
     // 監聽行程
-    const itineraryCol = collection(db, 'artifacts', appId, 'public', 'data', 'itinerary');
-    const unsubItinerary = onSnapshot(itineraryCol, (snapshot) => {
-      const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-      setItineraryData(docs);
-    }, (err) => console.error("行程同步錯誤:", err));
+    const unsubItinerary = onSnapshot(
+      collection(db, path, 'itinerary'), 
+      (snap) => setItineraryData(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
+      (err) => console.error("Itinerary Sync Error:", err)
+    );
 
     // 監聽記帳
-    const expenseCol = collection(db, 'artifacts', appId, 'public', 'data', 'expenses');
-    const unsubExpense = onSnapshot(expenseCol, (snapshot) => {
-      const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-      // 按日期排序
-      const sorted = docs.sort((a, b) => new Date(b.date) - new Date(a.date));
-      setExpenses(sorted);
-    }, (err) => console.error("記帳同步錯誤:", err));
+    const unsubExpense = onSnapshot(
+      collection(db, path, 'expenses'), 
+      (snap) => {
+        const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        setExpenses(docs.sort((a, b) => new Date(b.date) - new Date(a.date)));
+      },
+      (err) => console.error("Expense Sync Error:", err)
+    );
 
-    return () => {
-      unsubItinerary();
-      unsubExpense();
-    };
+    return () => { unsubItinerary(); unsubExpense(); };
   }, [user]);
 
-  // --- 衍生資料 ---
+  // --- 衍生行程資料 ---
   const currentDayPlans = useMemo(() => {
-    const targetDate = dates[selectedDayIdx].date;
     return itineraryData
-      .filter(p => p.targetDate === targetDate)
-      .sort((a, b) => a.time.replace(':', '') - b.time.replace(':', ''));
+      .filter(p => p.targetDate === dates[selectedDayIdx].date)
+      .sort((a, b) => {
+        const tA = a.time?.replace(':', '') || '9999';
+        const tB = b.time?.replace(':', '') || '9999';
+        return parseInt(tA) - parseInt(tB);
+      });
   }, [itineraryData, selectedDayIdx]);
 
-  // --- 操作邏輯 ---
-  const handleAddPlan = () => {
-    setEditingPlan(null);
-    setEditPlanBuffer({ time: '', title: '' });
-    setIsEditingPlan(true);
+  // --- 提示功能 ---
+  const showToast = (msg) => {
+    setToast({ show: true, msg });
+    setTimeout(() => setToast({ show: false, msg: '' }), 3000);
   };
 
-  const handleEditPlan = (plan) => {
-    setEditingPlan(plan);
-    setEditPlanBuffer({ time: plan.time, title: plan.title });
-    setIsEditingPlan(true);
-  };
-
+  // --- 操作功能 ---
   const savePlan = async () => {
-    if (!editPlanBuffer.time || !editPlanBuffer.title) return;
+    if (!editPlanBuffer.time || !editPlanBuffer.title || !user) return;
     setIsSaving(true);
     try {
       const planId = editingPlan ? editingPlan.id : `plan-${Date.now()}`;
@@ -115,43 +123,42 @@ const App = () => {
       await setDoc(planRef, {
         ...editPlanBuffer,
         targetDate: dates[selectedDayIdx].date,
+        updatedBy: user.uid,
         updatedAt: serverTimestamp()
       }, { merge: true });
       setIsEditingPlan(false);
+      showToast("行程已存入雲端 💜");
     } catch (e) {
-      console.error(e);
+      alert("儲存失敗: " + e.message);
     } finally {
       setIsSaving(false);
     }
   };
 
   const deletePlan = async (id) => {
-    if (!window.confirm("確定要刪除這個行程嗎？")) return;
-    await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'itinerary', id));
+    if (!window.confirm("真的要刪除這個行程嗎？")) return;
+    try {
+      await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'itinerary', id));
+      showToast("行程已刪除");
+    } catch (e) { alert("刪除失敗"); }
   };
 
   const addExpense = async () => {
-    if (!newExpense.item || !newExpense.amount) return;
+    if (!newExpense.item || !newExpense.amount || !user) return;
     setIsSaving(true);
     try {
       const id = `exp-${Date.now()}`;
-      const expRef = doc(db, 'artifacts', appId, 'public', 'data', 'expenses', id);
-      await setDoc(expRef, {
+      await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'expenses', id), {
         ...newExpense,
         amount: parseFloat(newExpense.amount),
         amountTwd: Math.round(parseFloat(newExpense.amount) * exchangeRate),
+        createdBy: user.uid,
         createdAt: serverTimestamp()
       });
       setNewExpense({ ...newExpense, item: '', amount: '' });
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const deleteExpense = async (id) => {
-    await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'expenses', id));
+      showToast("記帳成功！💜");
+    } catch (e) { alert("記帳失敗"); }
+    finally { setIsSaving(false); }
   };
 
   const openMap = (query) => {
@@ -159,26 +166,34 @@ const App = () => {
     window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(target)}`, '_blank');
   };
 
-  // --- UI 組件 ---
   return (
-    <div className="max-w-md mx-auto min-h-screen relative pb-32 bg-[#F9F7FC] text-[#2D2727]" 
+    <div className="max-w-md mx-auto min-h-screen relative pb-32 bg-[#F9F7FC] text-[#2D2727] overflow-x-hidden" 
          style={{ backgroundImage: 'radial-gradient(#9D76C1 0.5px, transparent 0.5px)', backgroundSize: '20px 20px' }}>
       
-      {/* 可愛字體樣式注入 */}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&display=swap');
-        body { font-family: 'ZCOOL KuaiLe', cursive; }
+        body { font-family: 'ZCOOL KuaiLe', cursive; -webkit-tap-highlight-color: transparent; }
         .kuromi-gradient { background: linear-gradient(135deg, #9D76C1 0%, #765898 100%); }
+        .tab-active { color: #9D76C1; border-bottom: 8px solid #9D76C1; }
+        .modal-mask { background-color: rgba(0, 0, 0, 0.6); backdrop-filter: blur(10px); }
       `}</style>
+
+      {/* Toast 提示 */}
+      <div className={`fixed top-10 left-1/2 -translate-x-1/2 z-[200] transition-all duration-500 ${toast.show ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-10 pointer-events-none'}`}>
+        <div className="bg-black/80 text-white px-6 py-4 rounded-full flex items-center gap-3 shadow-2xl border border-purple-400 backdrop-blur-md">
+          <CheckCircle2 className="text-pink-400 w-5 h-5" />
+          <span className="font-bold">{toast.msg}</span>
+        </div>
+      </div>
 
       {/* Header */}
       <header className="kuromi-gradient text-white p-10 pt-16 rounded-b-[80px] shadow-2xl relative">
         <div className="flex justify-between items-center relative z-10">
           <div className="flex-1">
             <h1 className="text-6xl font-bold tracking-tight" style={{ textShadow: '4px 4px 0px rgba(0,0,0,0.2)' }}>福岡 2026</h1>
-            <div className="flex items-center gap-2 mt-4">
+            <div className="flex items-center gap-3 mt-4">
               <span className="bg-black/30 px-5 py-2 rounded-full text-xs font-bold tracking-[0.3em]">KCY FAMILY</span>
-              <Heart className="w-6 h-6 fill-pink-400 text-pink-400" />
+              <Heart className="w-6 h-6 fill-pink-400 text-pink-400 animate-pulse" />
             </div>
           </div>
           <div className="bg-black/40 p-6 rounded-[50px] backdrop-blur-xl text-center border-2 border-white/20 min-w-[130px] shadow-2xl">
@@ -196,7 +211,7 @@ const App = () => {
             <button 
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`flex-1 py-7 font-black text-xl transition-all ${activeTab === tab ? 'text-[#9D76C1] border-b-8 border-[#9D76C1]' : 'text-slate-400'}`}
+              className={`flex-1 py-7 font-black text-xl transition-all ${activeTab === tab ? 'tab-active' : 'text-slate-400'}`}
             >
               {tab === 'itinerary' ? '行程' : tab === 'expense' ? '記帳' : '工具'}
             </button>
@@ -204,24 +219,27 @@ const App = () => {
         </nav>
       )}
 
-      {/* 內容區 */}
+      {/* 內容區塊 */}
       <div className="px-8 py-10">
         
-        {/* (1) 行程分頁 */}
         {activeTab === 'itinerary' && (
           <>
             {itineraryView === 'list' ? (
               <div className="space-y-8 animate-in fade-in duration-500">
-                <h2 className="text-3xl font-black text-slate-800">冒險出發！ 💜</h2>
+                <div className="flex justify-between items-center">
+                  <h2 className="text-3xl font-black text-slate-800">開始冒險！ 💜</h2>
+                  {!user && !authError && <RefreshCw className="animate-spin text-purple-400" />}
+                  {authError && <AlertCircle className="text-red-500" title={authError} />}
+                </div>
                 <div className="grid grid-cols-2 gap-6">
                   {dates.map((day, idx) => (
                     <div 
                       key={day.date}
                       onClick={() => { setSelectedDayIdx(idx); setItineraryView('detail'); }}
-                      className="bg-white rounded-[45px] p-10 flex flex-col items-center justify-center text-center shadow-2xl border-4 border-[#E2D9F3] border-b-[12px] border-b-[#9D76C1] active:scale-95 transition-transform relative"
+                      className="bg-white rounded-[45px] p-10 flex flex-col items-center justify-center text-center shadow-2xl border-4 border-[#E2D9F3] border-b-[12px] border-b-[#9D76C1] active:scale-95 transition-all relative"
                     >
                       <span className="text-sm font-black text-purple-300 uppercase mb-2">{day.dayName}</span>
-                      <span className="text-7xl font-black text-slate-700 mb-4">{day.date.split('/')[1]}</span>
+                      <span className="text-7xl font-black text-slate-700 mb-4">{day.date.split('/')[1] }</span>
                       <span className="text-xs font-black text-white bg-purple-400 px-5 py-2 rounded-full">{day.date}</span>
                       {itineraryData.some(p => p.targetDate === day.date) && (
                         <div className="absolute top-6 right-6 w-5 h-5 bg-pink-400 rounded-full animate-pulse border-4 border-white shadow-lg" />
@@ -231,7 +249,7 @@ const App = () => {
                 </div>
                 <button onClick={() => openMap('https://maps.app.goo.gl/pd5Mgn8orC6EG7dc6')} className="w-full bg-[#2D2727] text-white py-8 rounded-[50px] flex items-center justify-center gap-5 shadow-2xl active:scale-95 border-4 border-purple-900/10">
                   <MapPinned className="text-pink-400 w-10 h-10" />
-                  <span className="font-black text-2xl tracking-wider">開啟地圖景點 💜</span>
+                  <span className="font-black text-2xl tracking-wider">開啟地圖收藏 💜</span>
                 </button>
               </div>
             ) : (
@@ -242,13 +260,13 @@ const App = () => {
                   </button>
                   <div>
                     <h2 className="text-5xl font-black text-slate-800 tracking-tight">{dates[selectedDayIdx].date}</h2>
-                    <p className="text-sm font-black text-purple-400 uppercase mt-2 tracking-widest">本日冒險計畫</p>
+                    <p className="text-sm font-black text-purple-400 uppercase mt-2 tracking-widest">本日計畫清單</p>
                   </div>
                 </div>
 
-                <button onClick={handleAddPlan} className="w-full bg-white border-4 border-dashed border-purple-200 text-purple-500 py-10 rounded-[50px] flex items-center justify-center gap-4 active:scale-95 transition-all shadow-inner hover:bg-purple-50">
+                <button onClick={() => { setEditingPlan(null); setEditPlanBuffer({time:'', title:''}); setIsEditingPlan(true); }} className="w-full bg-white border-4 border-dashed border-purple-200 text-purple-500 py-10 rounded-[50px] flex items-center justify-center gap-4 active:scale-95 transition-all shadow-inner hover:bg-purple-50">
                   <CalendarPlus className="w-10 h-10" />
-                  <span className="font-black text-3xl">新增行程 💜</span>
+                  <span className="font-black text-3xl">新增本日行程 💜</span>
                 </button>
 
                 <div className="space-y-8">
@@ -257,9 +275,9 @@ const App = () => {
                       <div className="flex justify-between items-start mb-8">
                         <span className="text-xl font-black text-white bg-slate-800 px-6 py-2.5 rounded-full shadow-xl">{plan.time}</span>
                         <div className="flex gap-4">
-                          <button onClick={() => handleEditPlan(plan)} className="p-5 bg-purple-50 text-purple-400 rounded-full active:scale-75 shadow-sm"><PencilLine className="w-8 h-8" /></button>
-                          <button onClick={() => openMap(plan.title)} className="p-5 bg-pink-50 text-pink-400 rounded-full active:scale-75 shadow-sm"><Navigation className="w-8 h-8" /></button>
-                          <button onClick={() => deletePlan(plan.id)} className="p-5 bg-red-50 text-red-400 rounded-full active:scale-75 shadow-sm"><Trash2 className="w-8 h-8" /></button>
+                          <button onClick={() => { setEditingPlan(plan); setEditPlanBuffer({time:plan.time, title:plan.title}); setIsEditingPlan(true); }} className="p-5 bg-purple-50 text-purple-400 rounded-full active:scale-75 shadow-sm transition-all"><PencilLine className="w-8 h-8" /></button>
+                          <button onClick={() => openMap(plan.title)} className="p-5 bg-pink-50 text-pink-400 rounded-full active:scale-75 shadow-sm transition-all"><Navigation className="w-8 h-8" /></button>
+                          <button onClick={() => deletePlan(plan.id)} className="p-5 bg-red-50 text-red-400 rounded-full active:scale-75 shadow-sm transition-all"><Trash2 className="w-8 h-8" /></button>
                         </div>
                       </div>
                       <h3 className="text-4xl font-black text-slate-700 leading-tight">{plan.title}</h3>
@@ -268,7 +286,7 @@ const App = () => {
                   {currentDayPlans.length === 0 && (
                     <div className="py-40 text-center opacity-20">
                       <Sparkles className="w-24 h-24 mx-auto mb-8 text-purple-200" />
-                      <p className="font-black text-3xl uppercase tracking-widest">目前沒計畫唷</p>
+                      <p className="font-black text-3xl uppercase tracking-widest">目前還沒安排唷</p>
                     </div>
                   )}
                 </div>
@@ -277,10 +295,8 @@ const App = () => {
           </>
         )}
 
-        {/* (2) 記帳分頁 */}
         {activeTab === 'expense' && (
           <div className="space-y-12 animate-in fade-in duration-500">
-            {/* 匯率卡片 */}
             <div className="bg-[#2D2727] text-white p-12 rounded-[50px] shadow-2xl relative overflow-hidden">
               <div className="absolute -right-6 -bottom-6 opacity-10"><Coins className="w-40 h-40" /></div>
               <p className="text-md text-[#FF91C1] font-black uppercase tracking-[0.3em] mb-8">JPY ⮕ TWD 即時換算</p>
@@ -304,7 +320,6 @@ const App = () => {
               </div>
             </div>
 
-            {/* 新增支出 */}
             <div className="bg-white rounded-[50px] p-12 space-y-10 shadow-2xl border-[6px] border-purple-100">
               <div className="flex justify-between items-center">
                 <h3 className="text-3xl font-black text-slate-800 italic underline decoration-pink-300 decoration-8 underline-offset-8">新增支出 💜</h3>
@@ -324,34 +339,31 @@ const App = () => {
                   className="w-full border-b-6 border-purple-50 pb-5 text-2xl font-black focus:border-purple-400 outline-none bg-transparent" 
                 />
                 <input 
-                  placeholder="買了什麼？" 
+                  placeholder="買了什麼好東西？" 
                   value={newExpense.item}
                   onChange={(e) => setNewExpense({...newExpense, item: e.target.value})}
                   className="w-full border-b-6 border-purple-50 pb-5 text-2xl font-black focus:border-purple-400 outline-none" 
                 />
-                <div className="grid grid-cols-1 gap-8">
-                  <input 
-                    type="number" 
-                    placeholder="日幣 ¥" 
-                    value={newExpense.amount}
-                    onChange={(e) => setNewExpense({...newExpense, amount: e.target.value})}
-                    className="w-full border-4 border-purple-50 p-6 text-3xl font-black focus:border-purple-400 outline-none bg-slate-50 rounded-[30px]" 
-                  />
-                </div>
+                <input 
+                  type="number" 
+                  placeholder="日幣金額 ¥" 
+                  value={newExpense.amount}
+                  onChange={(e) => setNewExpense({...newExpense, amount: e.target.value})}
+                  className="w-full border-4 border-purple-50 p-6 text-3xl font-black focus:border-purple-400 outline-none bg-slate-50 rounded-[30px]" 
+                />
               </div>
               <button 
                 onClick={addExpense} 
-                disabled={isSaving}
+                disabled={isSaving || !user}
                 className="w-full kuromi-gradient text-white py-8 rounded-[50px] font-black text-2xl shadow-2xl flex items-center justify-center gap-4 active:scale-95 disabled:grayscale"
               >
-                {isSaving ? <RefreshCw className="animate-spin w-8 h-8" /> : '紀錄雲端 💜'}
+                {isSaving ? <RefreshCw className="animate-spin w-8 h-8" /> : '紀錄這筆開銷 💜'}
               </button>
             </div>
 
-            {/* 支出清單 */}
             <div className="space-y-8 pb-20">
               <h3 className="text-3xl font-black text-slate-800 flex items-center gap-4 px-4">
-                <Banknote className="w-10 h-10 text-purple-400" /> 雲端帳本
+                <Banknote className="w-10 h-10 text-purple-400" /> 雲端帳本紀錄
               </h3>
               {expenses.map(ex => (
                 <div key={ex.id} className="bg-white rounded-[45px] border-4 border-[#E2D9F3] p-10 flex flex-col shadow-2xl border-l-[25px] border-l-[#9D76C1]">
@@ -368,7 +380,7 @@ const App = () => {
                         <p className="text-4xl font-black text-slate-800">¥{ex.amount.toLocaleString()}</p>
                         <p className="text-md font-black text-pink-400">NT${ex.amountTwd.toLocaleString()}</p>
                       </div>
-                      <button onClick={() => deleteExpense(ex.id)} className="p-5 bg-red-50 text-red-400 rounded-full active:scale-90"><Trash2 className="w-8 h-8" /></button>
+                      <button onClick={() => deleteExpense(ex.id)} className="p-5 bg-red-50 text-red-400 rounded-full active:scale-90 transition-all shadow-sm"><Trash2 className="w-8 h-8" /></button>
                     </div>
                   </div>
                 </div>
@@ -377,7 +389,6 @@ const App = () => {
           </div>
         )}
 
-        {/* (3) 工具分頁 */}
         {activeTab === 'tools' && (
           <div className="space-y-16 animate-in fade-in duration-500">
             <section className="bg-white rounded-[50px] border-[10px] border-[#9D76C1] p-12 shadow-2xl relative">
@@ -385,18 +396,20 @@ const App = () => {
               <h3 className="text-4xl font-black mb-3 text-[#2D2727]">博多西鐵 CROOM</h3>
               <p className="text-md text-slate-400 mb-10 font-black uppercase tracking-[0.2em]">櫛田神社前站 4 號出口對面</p>
               <div className="flex gap-6">
-                <button onClick={() => openMap('博多祇園櫛田神社前西鐵克魯姆酒店')} className="flex-1 kuromi-gradient text-white py-7 rounded-[40px] font-black text-xl shadow-2xl">地圖 📍</button>
-                <a href="tel:092-235-0311" className="flex-1 border-6 border-[#2D2727] text-center py-7 rounded-[40px] font-black text-xl flex items-center justify-center">撥打 📞</a>
+                <button onClick={() => openMap('博多祇園櫛田神社前西鐵克魯姆酒店')} className="flex-1 kuromi-gradient text-white py-7 rounded-[40px] font-black text-xl shadow-2xl transition-all">地圖 📍</button>
+                <a href="tel:092-235-0311" className="flex-1 border-6 border-[#2D2727] text-center py-7 rounded-[40px] font-black text-xl flex items-center justify-center transition-all">撥打 📞</a>
               </div>
             </section>
             
-            <section>
-              <h3 className="text-4xl font-black text-slate-800 mb-10 px-4 flex items-center gap-4">
-                <Luggage className="text-pink-400 w-14 h-14" /> 旅行狀態
+            <section className="bg-slate-200 p-10 rounded-[50px] border-4 border-dashed border-slate-300 opacity-60">
+              <h3 className="text-xl font-black text-slate-600 mb-6 flex items-center gap-3">
+                <AlertCircle className="w-6 h-6" /> 雲端連線診斷
               </h3>
-              <div className="bg-slate-100 p-10 rounded-[50px] border-4 border-dashed border-slate-300">
-                <p className="font-black text-slate-500 text-center">雲端同步功能正常運作中 💜</p>
-                <p className="text-xs text-slate-400 text-center mt-2 tracking-widest font-bold">DEVICE ID: {user?.uid?.substring(0, 8)}</p>
+              <div className="space-y-3 font-bold text-xs text-slate-500 uppercase tracking-widest">
+                <p className="flex justify-between">連線狀態: <span className={user ? 'text-green-600' : 'text-orange-500'}>{user ? 'ONLINE 💜' : 'CONNECTING...'}</span></p>
+                <p className="flex justify-between">User ID: <span>{user?.uid?.substring(0, 12) || '---'}</span></p>
+                <p className="flex justify-between">App ID: <span>{appId}</span></p>
+                {authError && <p className="text-red-500 mt-4 normal-case">ERROR: {authError}</p>}
               </div>
             </section>
           </div>
@@ -417,28 +430,28 @@ const App = () => {
                   value={editPlanBuffer.time} 
                   onChange={(e) => setEditPlanBuffer({...editPlanBuffer, time: e.target.value})}
                   placeholder="例如 14:30" 
-                  className="w-full border-4 border-purple-50 p-5 text-3xl font-black focus:border-purple-400 outline-none bg-slate-50 rounded-[30px] mt-2" 
+                  className="w-full border-4 border-purple-50 p-5 text-3xl font-black focus:border-purple-400 outline-none bg-slate-50 rounded-[30px] mt-2 transition-all" 
                 />
               </div>
               <div>
-                <label className="text-sm font-black text-slate-400 uppercase ml-4 tracking-[0.2em]">內容說明</label>
+                <label className="text-sm font-black text-slate-400 uppercase ml-4 tracking-[0.2em]">行程說明</label>
                 <input 
                   value={editPlanBuffer.title} 
                   onChange={(e) => setEditPlanBuffer({...editPlanBuffer, title: e.target.value})}
-                  placeholder="要去哪裡呢？" 
-                  className="w-full border-4 border-purple-50 p-5 text-3xl font-black focus:border-purple-400 outline-none bg-slate-50 rounded-[30px] mt-2" 
+                  placeholder="要去哪裡探險呢？" 
+                  className="w-full border-4 border-purple-50 p-5 text-3xl font-black focus:border-purple-400 outline-none bg-slate-50 rounded-[30px] mt-2 transition-all" 
                 />
               </div>
             </div>
             <div className="flex gap-4 pt-6">
               <button 
                 onClick={savePlan} 
-                disabled={isSaving}
-                className="flex-1 kuromi-gradient text-white py-8 rounded-[40px] font-black text-2xl shadow-2xl flex items-center justify-center gap-4 active:scale-95"
+                disabled={isSaving || !user}
+                className="flex-1 kuromi-gradient text-white py-8 rounded-[40px] font-black text-2xl shadow-2xl flex items-center justify-center gap-4 active:scale-95 disabled:grayscale transition-all"
               >
-                {isSaving ? <RefreshCw className="animate-spin w-8 h-8" /> : '儲存 💜'}
+                {isSaving ? <RefreshCw className="animate-spin w-8 h-8" /> : '儲存計畫 💜'}
               </button>
-              <button onClick={() => setIsEditingPlan(false)} className="px-10 bg-slate-100 text-slate-400 rounded-[40px] font-black text-xl">取消</button>
+              <button onClick={() => setIsEditingPlan(false)} className="px-10 bg-slate-100 text-slate-400 rounded-[40px] font-black text-xl active:scale-95 transition-all">取消</button>
             </div>
           </div>
         </div>
