@@ -74,11 +74,37 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo } = React;
 
-        // --- Firebase 初始化 ---
-        const firebaseConfig = JSON.parse(__firebase_config);
-        firebase.initializeApp(firebaseConfig);
-        const auth = firebase.auth();
-        const db = firebase.firestore();
+        // --- Firebase 初始化區塊 ---
+        // 在 GitHub 環境中，如果沒有自動注入設定，請手動填寫下方的 config
+        let firebaseConfig = {};
+        try {
+            if (typeof __firebase_config !== 'undefined') {
+                firebaseConfig = JSON.parse(__firebase_config);
+            } else {
+                // ⚠️ 如果您看到「設定缺失」畫面，請將您的 Firebase SDK 配置貼到這裡
+                firebaseConfig = {
+                    apiKey: "",
+                    authDomain: "",
+                    projectId: "",
+                    storageBucket: "",
+                    messagingSenderId: "",
+                    appId: ""
+                };
+            }
+        } catch (e) {
+            console.error("Firebase config parsing error", e);
+        }
+
+        // 初始化檢查
+        const isConfigValid = firebaseConfig && firebaseConfig.apiKey;
+        if (isConfigValid) {
+            if (!firebase.apps.length) {
+                firebase.initializeApp(firebaseConfig);
+            }
+        }
+
+        const auth = isConfigValid ? firebase.auth() : null;
+        const db = isConfigValid ? firebase.firestore() : null;
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'fukuoka-trip-2026';
 
         // 圖標組件
@@ -111,13 +137,18 @@
                 { date: '6/5', dayName: 'FRI' }, { date: '6/6', dayName: 'SAT' }
             ];
 
-            // 1. 匿名登入 (RULE 3)
+            // 1. 身份驗證
             useEffect(() => {
+                if (!isConfigValid) return;
                 const initAuth = async () => {
-                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                        await auth.signInWithCustomToken(__initial_auth_token);
-                    } else {
-                        await auth.signInAnonymously();
+                    try {
+                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                            await auth.signInWithCustomToken(__initial_auth_token);
+                        } else {
+                            await auth.signInAnonymously();
+                        }
+                    } catch (err) {
+                        console.error("Auth failed", err);
                     }
                 };
                 initAuth();
@@ -125,9 +156,9 @@
                 return () => unsubscribe();
             }, []);
 
-            // 2. 即時監聽雲端 (RULE 1)
+            // 2. 即時監聽雲端
             useEffect(() => {
-                if (!user) return;
+                if (!user || !db) return;
                 const path = `artifacts/${appId}/public/data`;
                 
                 const unsubItinerary = db.collection(`${path}/itinerary`).onSnapshot(snap => {
@@ -195,8 +226,23 @@
                 window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(target)}`, '_blank');
             };
 
+            // 如果設定不完全，顯示提示
+            if (!isConfigValid) {
+                return (
+                    <div className="flex flex-col items-center justify-center min-h-screen bg-purple-50 p-10 text-center">
+                        <Icon name="alert-triangle" className="w-20 h-20 text-purple-400 mb-6" />
+                        <h1 className="text-3xl font-black text-purple-900 mb-4">雲端設定缺失</h1>
+                        <p className="text-purple-600 leading-relaxed">
+                            您正嘗試在外部環境（如 GitHub）執行此 App。<br/>
+                            請在程式碼中填寫您的 <b>firebaseConfig</b> 內容，<br/>
+                            App 才能連接至雲端資料庫。
+                        </p>
+                    </div>
+                );
+            }
+
             return (
-                <div className="max-w-md mx-auto min-h-screen relative pb-32">
+                <div className="max-w-md mx-auto min-h-screen relative pb-32 bg-pattern">
                     {/* Toast 訊息 */}
                     <div className={`fixed top-10 left-1/2 -translate-x-1/2 z-[200] transition-all duration-500 ${toast.show ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-10 pointer-events-none'}`}>
                         <div className="bg-black/80 text-white px-8 py-4 rounded-full flex items-center gap-3 shadow-2xl border border-purple-400 backdrop-blur-md">
@@ -205,7 +251,6 @@
                         </div>
                     </div>
 
-                    {/* Header */}
                     <header className="kuromi-gradient text-white p-10 pt-16 rounded-b-[80px] shadow-2xl relative overflow-hidden">
                         <div className="flex justify-between items-center relative z-10">
                             <div className="flex-1">
@@ -223,7 +268,6 @@
                         </div>
                     </header>
 
-                    {/* Navbar */}
                     {itineraryView === 'list' && (
                         <nav className="flex bg-white/95 backdrop-blur-lg sticky top-0 z-50 px-8 mt-4 border-b-8 border-purple-100 shadow-lg">
                             {['itinerary', 'expense', 'tools'].map(tab => (
@@ -348,7 +392,7 @@
                                 <section className="bg-white rounded-[60px] border-[10px] border-[#9D76C1] p-12 shadow-2xl relative">
                                     <Icon name="hotel" className="absolute -right-10 -top-10 w-24 h-24 text-purple-200 animate-bounce" />
                                     <h3 className="text-5xl font-black mb-4 text-[#2D2727]">博多西鐵 CROOM</h3>
-                                    <p className="text-md text-slate-400 mb-12 font-black uppercase tracking-[0.3em]">櫛田神社前站 4 號出口對面</p>
+                                    <p className="text-md text-slate-400 mb-12 font-black uppercase tracking-[0.2em]">櫛田神社前站 4 號出口對面</p>
                                     <div className="flex gap-8">
                                         <button onClick={() => window.open('https://www.google.com/maps/search/?api=1&query=博多祇園櫛田神社前西鐵克魯姆酒店','_blank')} className="flex-1 kuromi-gradient text-white py-9 rounded-[45px] font-black text-2xl shadow-2xl active:scale-95 transition-all">地圖 📍</button>
                                         <a href="tel:092-235-0311" className="flex-1 border-6 border-[#2D2727] text-center py-9 rounded-[45px] font-black text-2xl active:scale-95 transition-all">撥打 📞</a>
