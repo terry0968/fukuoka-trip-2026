@@ -1,23 +1,22 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-    <!-- 1. 解決亂碼：必須放在最前面 -->
+    <!-- 1. 解決亂碼關鍵：UTF-8 必須放在最前面 -->
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>福岡 2026 | Kuromi 家族大冒險</title>
 
-    <!-- 2. 核心庫引入 -->
+    <!-- 2. 外部資源載入 (React, Tailwind, Firebase, Lucide) -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- 3. Firebase SDK (相容版) -->
+    <!-- 使用 Firebase 相容版 SDK (Compat) 確保在單一 HTML 中執行穩定 -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
     
-    <!-- 4. 圖標庫 (Lucide) -->
     <script src="https://unpkg.com/lucide@latest"></script>
     
     <style>
@@ -40,32 +39,30 @@
             -webkit-tap-highlight-color: transparent;
         }
 
+        /* 漸層與背景圖案 */
         .kuromi-gradient { background: linear-gradient(135deg, #9D76C1 0%, #765898 100%); }
         .bg-pattern { 
             background-image: radial-gradient(var(--kuromi-purple) 0.5px, transparent 0.5px); 
             background-size: 20px 20px; 
         }
 
+        /* 庫洛米風格卡片 */
         .kuromi-card { 
             background: white; 
             border-radius: 40px; 
             border: 4px solid #E2D9F3; 
-            box-shadow: 0 10px 25px rgba(157, 118, 193, 0.08);
+            box-shadow: 0 10px 25px rgba(157, 118, 193, 0.1);
             transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
+        .kuromi-card:active { transform: scale(0.96); }
 
+        /* 彈窗背景模糊 */
         .modal-mask {
-            background-color: rgba(0, 0, 0, 0.65);
-            backdrop-filter: blur(12px);
+            background-color: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(8px);
         }
 
         .hide-scrollbar::-webkit-scrollbar { display: none; }
-
-        @keyframes pulse-custom {
-            0%, 100% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.7; transform: scale(0.95); }
-        }
-        .animate-pulse-soft { animation: pulse-custom 2s infinite ease-in-out; }
     </style>
 </head>
 <body class="bg-pattern">
@@ -74,14 +71,14 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo } = React;
 
-        // --- Firebase 初始化區塊 ---
-        // 在 GitHub 環境中，如果沒有自動注入設定，請手動填寫下方的 config
+        // --- (1) Firebase 雲端連線設定 ---
+        // 為了讓 GitHub 也能跑，這裡加入了自動與手動配置切換
         let firebaseConfig = {};
         try {
             if (typeof __firebase_config !== 'undefined') {
                 firebaseConfig = JSON.parse(__firebase_config);
             } else {
-                // ⚠️ 如果您看到「設定缺失」畫面，請將您的 Firebase SDK 配置貼到這裡
+                // ⚠️ 如果您看到「設定缺失」畫面，請在此處貼上您 Firebase 專案的 SDK 配置內容
                 firebaseConfig = {
                     apiKey: "",
                     authDomain: "",
@@ -91,23 +88,19 @@
                     appId: ""
                 };
             }
-        } catch (e) {
-            console.error("Firebase config parsing error", e);
-        }
+        } catch (e) { console.error("Firebase config error"); }
 
         // 初始化檢查
         const isConfigValid = firebaseConfig && firebaseConfig.apiKey;
         if (isConfigValid) {
-            if (!firebase.apps.length) {
-                firebase.initializeApp(firebaseConfig);
-            }
+            if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
         }
 
         const auth = isConfigValid ? firebase.auth() : null;
         const db = isConfigValid ? firebase.firestore() : null;
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'fukuoka-trip-2026';
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'fukuoka-trip-demo';
 
-        // 圖標組件
+        // --- (2) 組件封裝：Lucide 圖標 ---
         const Icon = ({ name, className = "w-6 h-6", size }) => {
             useEffect(() => { if (window.lucide) window.lucide.createIcons(); }, [name]);
             return <i data-lucide={name} className={className} style={size ? {width:size, height:size} : {}}></i>;
@@ -137,7 +130,7 @@
                 { date: '6/5', dayName: 'FRI' }, { date: '6/6', dayName: 'SAT' }
             ];
 
-            // 1. 身份驗證
+            // 1. 登入邏輯 (符合 RULE 3)
             useEffect(() => {
                 if (!isConfigValid) return;
                 const initAuth = async () => {
@@ -147,16 +140,14 @@
                         } else {
                             await auth.signInAnonymously();
                         }
-                    } catch (err) {
-                        console.error("Auth failed", err);
-                    }
+                    } catch (e) { console.error("Auth error", e); }
                 };
                 initAuth();
                 const unsubscribe = auth.onAuthStateChanged(setUser);
                 return () => unsubscribe();
             }, []);
 
-            // 2. 即時監聽雲端
+            // 2. 即時雲端監聽 (符合 RULE 1 & 2)
             useEffect(() => {
                 if (!user || !db) return;
                 const path = `artifacts/${appId}/public/data`;
@@ -174,8 +165,9 @@
             }, [user]);
 
             const currentDayPlans = useMemo(() => {
+                const target = dates[selectedDayIdx].date;
                 return itineraryData
-                    .filter(p => p.targetDate === dates[selectedDayIdx].date)
+                    .filter(p => p.targetDate === target)
                     .sort((a, b) => (a.time || '99:99').replace(':', '') - (b.time || '99:99').replace(':', ''));
             }, [itineraryData, selectedDayIdx]);
 
@@ -184,6 +176,7 @@
                 setTimeout(() => setToast({ show: false, msg: '' }), 3000);
             };
 
+            // --- 功能動作 ---
             const savePlan = async () => {
                 if (!editPlanBuffer.time || !editPlanBuffer.title || !user) return;
                 setIsSaving(true);
@@ -195,7 +188,7 @@
                         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                     }, { merge: true });
                     setIsEditingPlan(false);
-                    showToast("雲端同步成功 💜");
+                    showToast("同步成功 💜");
                 } finally { setIsSaving(false); }
             };
 
@@ -211,53 +204,49 @@
                         createdAt: firebase.firestore.FieldValue.serverTimestamp()
                     });
                     setNewExpense({ ...newExpense, item: '', amount: '' });
-                    showToast("記帳已成功 💜");
+                    showToast("記帳成功 💜");
                 } finally { setIsSaving(false); }
             };
 
             const deleteItem = async (col, id) => {
-                if (!window.confirm("確定刪除嗎？資料將從雲端移除")) return;
+                if (!window.confirm("確定刪除嗎？")) return;
                 await db.doc(`artifacts/${appId}/public/data/${col}/${id}`).delete();
-                showToast("已刪除");
+                showToast("已刪除資料");
             };
 
-            const openMap = (q) => {
-                const target = q.includes('回飯店') ? '博多祇園櫛田神社前西鐵克魯姆酒店' : q;
-                window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(target)}`, '_blank');
-            };
-
-            // 如果設定不完全，顯示提示
+            // 如果設定不正確，顯示警告畫面
             if (!isConfigValid) {
                 return (
-                    <div className="flex flex-col items-center justify-center min-h-screen bg-purple-50 p-10 text-center">
-                        <Icon name="alert-triangle" className="w-20 h-20 text-purple-400 mb-6" />
-                        <h1 className="text-3xl font-black text-purple-900 mb-4">雲端設定缺失</h1>
-                        <p className="text-purple-600 leading-relaxed">
-                            您正嘗試在外部環境（如 GitHub）執行此 App。<br/>
-                            請在程式碼中填寫您的 <b>firebaseConfig</b> 內容，<br/>
-                            App 才能連接至雲端資料庫。
+                    <div className="flex flex-col items-center justify-center min-h-screen bg-white p-12 text-center">
+                        <Icon name="alert-triangle" className="w-24 h-24 text-purple-400 mb-8" />
+                        <h1 className="text-4xl font-black text-purple-900 mb-6">設定缺失</h1>
+                        <p className="text-purple-600 leading-relaxed text-xl">
+                            您正嘗試在 GitHub 執行此 App。<br/>
+                            請在 index.html 程式碼中填寫您的 <br/>
+                            <b>firebaseConfig</b>，App 才能連接雲端。
                         </p>
                     </div>
                 );
             }
 
             return (
-                <div className="max-w-md mx-auto min-h-screen relative pb-32 bg-pattern">
-                    {/* Toast 訊息 */}
+                <div className="max-w-md mx-auto min-h-screen relative pb-32">
+                    {/* Toast 提示 */}
                     <div className={`fixed top-10 left-1/2 -translate-x-1/2 z-[200] transition-all duration-500 ${toast.show ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-10 pointer-events-none'}`}>
                         <div className="bg-black/80 text-white px-8 py-4 rounded-full flex items-center gap-3 shadow-2xl border border-purple-400 backdrop-blur-md">
-                            <Icon name="check-circle" className="text-pink-400 w-6 h-6" />
+                            <Icon name="check-circle-2" className="text-pink-400 w-6 h-6" />
                             <span className="font-bold text-lg tracking-widest">{toast.msg}</span>
                         </div>
                     </div>
 
+                    {/* Header */}
                     <header className="kuromi-gradient text-white p-10 pt-16 rounded-b-[80px] shadow-2xl relative overflow-hidden">
                         <div className="flex justify-between items-center relative z-10">
                             <div className="flex-1">
-                                <h1 className="text-6xl font-bold tracking-tight" style={{ textShadow: '4px 4px 0px rgba(0,0,0,0.2)' }}>福岡 2026</h1>
+                                <h1 className="text-6xl font-bold tracking-tighter" style={{ textShadow: '4px 4px 0px rgba(0,0,0,0.2)' }}>福岡 2026</h1>
                                 <div className="flex items-center gap-3 mt-4">
                                     <span className="bg-black/30 px-5 py-2 rounded-full text-xs font-bold tracking-[0.3em]">KCY FAMILY</span>
-                                    <Icon name="heart" className="w-6 h-6 text-pink-400 fill-pink-400 animate-pulse" />
+                                    <Icon name="heart" className="w-6 h-6 fill-pink-400 text-pink-400 animate-pulse" />
                                 </div>
                             </div>
                             <div className="bg-black/40 p-6 rounded-[50px] backdrop-blur-xl text-center border-2 border-white/20 min-w-[130px] shadow-2xl">
@@ -268,6 +257,7 @@
                         </div>
                     </header>
 
+                    {/* 頁籤 */}
                     {itineraryView === 'list' && (
                         <nav className="flex bg-white/95 backdrop-blur-lg sticky top-0 z-50 px-8 mt-4 border-b-8 border-purple-100 shadow-lg">
                             {['itinerary', 'expense', 'tools'].map(tab => (
@@ -279,10 +269,11 @@
                     )}
 
                     <div className="px-8 py-10">
+                        {/* 1. 行程分頁 */}
                         {activeTab === 'itinerary' && (
                             itineraryView === 'list' ? (
                                 <div className="space-y-8 animate-in fade-in duration-500">
-                                    <h2 className="text-3xl font-black text-slate-800 tracking-wider">選個日期去探險！ 💜</h2>
+                                    <h2 className="text-3xl font-black text-slate-800 tracking-wider">去哪探險？ 💜</h2>
                                     <div className="grid grid-cols-2 gap-6">
                                         {dates.map((day, idx) => (
                                             <div key={day.date} onClick={() => { setSelectedDayIdx(idx); setItineraryView('detail'); }} className="kuromi-card p-10 flex flex-col items-center justify-center text-center relative active:scale-95 border-b-[12px] border-b-[#9D76C1]">
@@ -295,7 +286,7 @@
                                     </div>
                                     <button onClick={() => window.open('https://maps.app.goo.gl/pd5Mgn8orC6EG7dc6', '_blank')} className="w-full bg-[#2D2727] text-white py-8 rounded-[50px] flex items-center justify-center gap-5 shadow-2xl active:scale-95 border-4 border-purple-900/10 mt-6">
                                         <Icon name="map-pinned" className="text-pink-400 w-10 h-10" />
-                                        <span className="font-black text-2xl tracking-wider">地圖行程表 💜</span>
+                                        <span className="font-black text-2xl tracking-wider">開啟地圖表 💜</span>
                                     </button>
                                 </div>
                             ) : (
@@ -311,7 +302,7 @@
                                     </div>
                                     <button onClick={() => { setEditingPlan(null); setEditPlanBuffer({time:'', title:''}); setIsEditingPlan(true); }} className="w-full bg-white border-4 border-dashed border-purple-200 text-purple-500 py-10 rounded-[50px] flex items-center justify-center gap-4 active:scale-95 shadow-inner hover:bg-purple-50 transition-all">
                                         <Icon name="calendar-plus" className="w-10 h-10" />
-                                        <span className="font-black text-3xl">新增行程計畫 💜</span>
+                                        <span className="font-black text-3xl">新增計畫 💜</span>
                                     </button>
                                     <div className="space-y-8">
                                         {currentDayPlans.map(plan => (
@@ -326,17 +317,12 @@
                                                 <h3 className="text-4xl font-black text-slate-700 leading-tight pr-6">{plan.title}</h3>
                                             </div>
                                         ))}
-                                        {currentDayPlans.length === 0 && (
-                                            <div className="py-40 text-center opacity-20">
-                                                <Icon name="sparkles" className="w-24 h-24 mx-auto mb-8 text-purple-200" />
-                                                <p className="font-black text-3xl uppercase tracking-widest">目前沒行程唷</p>
-                                            </div>
-                                        )}
                                     </div>
                                 </div>
                             )
                         )}
 
+                        {/* 2. 記帳分頁 */}
                         {activeTab === 'expense' && (
                             <div className="space-y-12 animate-in fade-in duration-500">
                                 <div className="bg-[#2D2727] text-white p-12 rounded-[60px] shadow-2xl relative overflow-hidden">
@@ -352,18 +338,18 @@
                                 </div>
                                 <div className="bg-white rounded-[60px] p-12 space-y-10 shadow-2xl border-[8px] border-purple-100">
                                     <div className="flex justify-between items-center text-slate-800">
-                                        <h3 className="text-3xl font-black italic underline decoration-pink-300 decoration-[6px] underline-offset-8">新增花費 💜</h3>
-                                        <select value={newExpense.payer} onChange={(e) => setNewExpense({...newExpense, payer: e.target.value})} className="bg-purple-100 rounded-[30px] px-8 py-4 font-black text-lg text-[#9D76C1] outline-none border-none shadow-inner">
+                                        <h3 className="text-3xl font-black italic underline decoration-pink-300">新增支出 💜</h3>
+                                        <select value={newExpense.payer} onChange={(e) => setNewExpense({...newExpense, payer: e.target.value})} className="bg-purple-100 rounded-[30px] px-8 py-4 font-black text-lg text-[#9D76C1] outline-none">
                                             {members.map(m => <option key={m}>{m}</option>)}
                                         </select>
                                     </div>
                                     <div className="space-y-8">
                                         <input type="date" value={newExpense.date} onChange={(e) => setNewExpense({...newExpense, date: e.target.value})} className="w-full border-b-6 border-purple-50 pb-6 text-2xl font-black focus:border-purple-400 outline-none bg-transparent" />
-                                        <input placeholder="品項名稱？" value={newExpense.item} onChange={(e) => setNewExpense({...newExpense, item: e.target.value})} className="w-full border-b-6 border-purple-50 pb-6 text-2xl font-black focus:border-purple-400 outline-none" />
-                                        <input type="number" placeholder="日幣金額 ¥" value={newExpense.amount} onChange={(e) => setNewExpense({...newExpense, amount: e.target.value})} className="w-full border-4 border-purple-50 p-7 text-3xl font-black focus:border-purple-400 outline-none bg-slate-50 rounded-[40px]" />
+                                        <input placeholder="買了什麼？" value={newExpense.item} onChange={(e) => setNewExpense({...newExpense, item: e.target.value})} className="w-full border-b-6 border-purple-50 pb-6 text-2xl font-black focus:border-purple-400 outline-none" />
+                                        <input type="number" placeholder="日幣 ¥" value={newExpense.amount} onChange={(e) => setNewExpense({...newExpense, amount: e.target.value})} className="w-full border-4 border-purple-50 p-7 text-3xl font-black focus:border-purple-400 outline-none bg-slate-50 rounded-[40px]" />
                                     </div>
-                                    <button onClick={addExpense} disabled={isSaving} className="w-full kuromi-gradient text-white py-10 rounded-[50px] font-black text-3xl shadow-xl active:scale-95 transition-all">
-                                        {isSaving ? <Icon name="refresh-cw" className="animate-spin mx-auto" /> : "儲存到雲端 💜"}
+                                    <button onClick={addExpense} disabled={isSaving} className="w-full kuromi-gradient text-white py-10 rounded-[50px] font-black text-3xl shadow-xl active:scale-95">
+                                        {isSaving ? <Icon name="refresh-cw" className="animate-spin mx-auto" /> : "儲存雲端 💜"}
                                     </button>
                                 </div>
                                 {expenses.map(ex => (
@@ -377,7 +363,7 @@
                                         </div>
                                         <div className="text-right flex items-center gap-6">
                                             <div>
-                                                <p className="text-5xl font-black text-slate-800 tracking-tighter">¥{ex.amount.toLocaleString()}</p>
+                                                <p className="text-5xl font-black text-slate-800">¥{ex.amount.toLocaleString()}</p>
                                                 <p className="text-md font-black text-pink-400 tracking-widest">NT${ex.amountTwd.toLocaleString()}</p>
                                             </div>
                                             <button onClick={() => deleteItem('expenses', ex.id)} className="p-5 bg-red-50 text-red-400 rounded-full active:scale-90 shadow-sm"><Icon name="trash-2" size={32}/></button>
@@ -387,6 +373,7 @@
                             </div>
                         )}
 
+                        {/* 3. 工具分頁 */}
                         {activeTab === 'tools' && (
                             <div className="space-y-16 animate-in fade-in duration-500">
                                 <section className="bg-white rounded-[60px] border-[10px] border-[#9D76C1] p-12 shadow-2xl relative">
@@ -402,35 +389,34 @@
                                     <p className="font-black text-slate-500 text-center flex items-center justify-center gap-4 text-xl tracking-[0.1em]">
                                         <Icon name="shield-check" className="w-8 h-8 text-green-500" /> 雲端連線正常運作中
                                     </p>
-                                    <p className="text-xs text-slate-400 text-center mt-5 uppercase tracking-[0.4em] font-black">App ID: {appId}</p>
                                 </section>
                             </div>
                         )}
                     </div>
 
-                    {/* 編輯行程彈窗 */}
+                    {/* 編輯計畫彈窗 */}
                     {isEditingPlan && (
                         <div className="fixed inset-0 z-[110] modal-mask flex items-center justify-center p-8 animate-in fade-in duration-300">
                             <div className="bg-white w-full rounded-[70px] p-16 shadow-2xl space-y-12 border-[12px] border-purple-100 animate-in zoom-in duration-300">
-                                <h3 className="text-5xl font-black text-slate-800 flex items-center gap-5 tracking-widest italic underline decoration-pink-300 decoration-[10px]">編輯冒險 ✏️</h3>
+                                <h3 className="text-5xl font-black text-slate-800 flex items-center gap-5 tracking-widest italic underline decoration-pink-300 decoration-[10px]">編輯計畫 ✏️</h3>
                                 <div className="space-y-10 text-left">
                                     <div>
                                         <label className="text-sm font-black text-slate-400 ml-6 tracking-[0.4em] uppercase">抵達時間</label>
                                         <input value={editPlanBuffer.time} onChange={(e) => setEditPlanBuffer({...editPlanBuffer, time: e.target.value})} placeholder="例如 14:30" className="w-full border-4 border-purple-50 p-6 text-4xl font-black focus:border-purple-400 outline-none bg-slate-50 rounded-[40px] mt-4" />
                                     </div>
                                     <div>
-                                        <label className="text-sm font-black text-slate-400 ml-6 tracking-[0.4em] uppercase">計畫內容</label>
+                                        <label className="text-sm font-black text-slate-400 ml-6 tracking-[0.4em] uppercase">要做什麼？</label>
                                         <input value={editPlanBuffer.title} onChange={(e) => setEditPlanBuffer({...editPlanBuffer, title: e.target.value})} placeholder="要做什麼呢？" className="w-full border-4 border-purple-50 p-6 text-4xl font-black focus:border-purple-400 outline-none bg-slate-50 rounded-[40px] mt-4" />
                                     </div>
                                 </div>
                                 <div className="flex gap-6 pt-6">
-                                    <button onClick={savePlan} disabled={isSaving} className="flex-1 kuromi-gradient text-white py-10 rounded-[50px] font-black text-3xl shadow-2xl active:scale-95">確認儲存 💜</button>
-                                    <button onClick={() => setIsEditingPlan(false)} className="px-14 bg-slate-100 text-slate-400 rounded-[50px] font-black text-2xl hover:bg-slate-200 active:scale-95 transition-all">取消</button>
+                                    <button onClick={savePlan} disabled={isSaving} className="flex-1 kuromi-gradient text-white py-10 rounded-[50px] font-black text-3xl shadow-2xl active:scale-95 transition-all">確認儲存 💜</button>
+                                    <button onClick={() => setIsEditingPlan(false)} className="px-14 bg-slate-100 text-slate-400 rounded-[50px] font-black text-2xl active:scale-95 transition-all">取消</button>
                                 </div>
                             </div>
                         </div>
                     )}
-                    <div className="fixed bottom-0 left-0 right-0 h-10 kuromi-gradient z-[60] shadow-[0_-5px_15px_rgba(0,0,0,0.1)]" />
+                    <div className="fixed bottom-0 left-0 right-0 h-10 kuromi-gradient z-[60]" />
                 </div>
             );
         };
