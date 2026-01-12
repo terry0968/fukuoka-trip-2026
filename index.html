@@ -84,6 +84,7 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo } = React;
 
+        // Firebase 配置
         const firebaseConfig = {
             apiKey: "AIzaSyCAb0qAoOh0A88-wuRz-Gk_cU5f2vIOd3c",
             authDomain: "fukuoka-2026.firebaseapp.com",
@@ -101,6 +102,7 @@
         const db = firebase.firestore();
         const appId = "fukuoka-2026";
 
+        // SVG 圖標組件
         const Icon = ({ name, className = "", size = 24 }) => {
             const icons = {
                 'heart': "M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.505 4.04 3 5.5L12 21l7-7Z",
@@ -167,7 +169,7 @@
             useEffect(() => {
                 const unsubscribe = auth.onAuthStateChanged(u => {
                     if (u) setUser(u);
-                    else auth.signInAnonymously();
+                    else auth.signInAnonymously().catch(err => console.error("Login fail", err));
                 });
                 return () => unsubscribe();
             }, []);
@@ -200,8 +202,8 @@
                     return h * 60 + m;
                 };
 
-                return itineraryData
-                    .filter(p => p.targetDate === target)
+                return (itineraryData || [])
+                    .filter(p => p && p.targetDate === target)
                     .sort((a, b) => timeToMinutes(a.time) - timeToMinutes(b.time));
             }, [itineraryData, selectedDayIdx]);
 
@@ -223,7 +225,8 @@
                     });
                     setNewExpense(prev => ({ ...prev, item: '', amount: '' }));
                     showToast("已存入雲端 💜");
-                } finally { setIsSaving(false); }
+                } catch(e) { console.error(e); } 
+                finally { setIsSaving(false); }
             };
 
             const openEditModal = (e, plan) => {
@@ -247,7 +250,8 @@
                     setIsEditingPlan(false);
                     setEditingPlan(null);
                     showToast("行程同步成功 💜");
-                } finally { setIsSaving(false); }
+                } catch(e) { console.error(e); }
+                finally { setIsSaving(false); }
             };
 
             const deletePlan = async (e, id) => {
@@ -289,13 +293,12 @@
                     </nav>
 
                     <div className="px-5 py-6">
-                        {/* 1. 行程：加大分頁標題 */}
                         {activeTab === 'itinerary' && (
                             itineraryView === 'list' ? (
                                 <div className="space-y-6 animate-in fade-in">
                                     <h2 className="text-2xl font-black text-slate-800 px-1 flex justify-between items-center">
                                         冒險計畫表 💜
-                                        {!user && <span className="text-[10px] animate-pulse">連線中...</span>}
+                                        {!user && <span className="text-[10px] animate-pulse text-purple-400">連線中...</span>}
                                     </h2>
                                     <div className="grid grid-cols-2 gap-4">
                                         {dates.map((day, idx) => (
@@ -304,7 +307,7 @@
                                                 <span className="text-[10px] font-black text-purple-300 uppercase mb-1">{day.dayName}</span>
                                                 <span className="text-5xl font-black text-slate-700 mb-2">{day.date.split('/')[1]}</span>
                                                 <span className="text-[10px] font-black text-white bg-purple-400 px-3 py-1 rounded-full">{day.date}</span>
-                                                {itineraryData.some(p => p.targetDate === day.date) && <div className="absolute top-4 right-4 w-3 h-3 bg-pink-400 rounded-full animate-pulse border-2 border-white shadow-sm" />}
+                                                {itineraryData && itineraryData.some(p => p && p.targetDate === day.date) && <div className="absolute top-4 right-4 w-3 h-3 bg-pink-400 rounded-full animate-pulse border-2 border-white shadow-sm" />}
                                             </div>
                                         ))}
                                     </div>
@@ -331,7 +334,7 @@
                                         <span className="font-black text-2xl">新增計畫</span>
                                     </button>
                                     <div className="space-y-4">
-                                        {currentDayPlans.map(plan => (
+                                        {(currentDayPlans || []).map(plan => (
                                             <div key={plan.id} className="kuromi-card p-5 flex flex-col border-l-[15px] border-l-[#9D76C1] shadow-md">
                                                 <div className="flex justify-between items-center mb-4">
                                                     <span className="text-xs font-black text-white bg-slate-800 px-3 py-1 rounded-full">{plan.time}</span>
@@ -360,7 +363,7 @@
                             )
                         )}
 
-                        {/* 2. 記帳：加大匯率換算結果 */}
+                        {/* 2. 記帳 */}
                         {activeTab === 'expense' && (
                             <div className="space-y-6 animate-in fade-in">
                                 <div className="bg-[#2D2727] text-white p-8 rounded-[40px] shadow-xl relative overflow-hidden">
@@ -389,7 +392,7 @@
                                         {isSaving ? <Icon name="refresh" className="animate-spin-custom" size={18} /> : "紀錄開銷 💜"}
                                     </button>
                                 </div>
-                                {expenses.map((ex, idx) => (
+                                {(expenses || []).map((ex, idx) => (
                                     <div key={ex.id || idx} className="kuromi-card p-5 flex justify-between items-center border-l-[12px] border-l-[#9D76C1] shadow-sm">
                                         <div className="flex-1 mr-2">
                                             <div className="flex items-center gap-2 mb-1">
@@ -495,8 +498,14 @@
             );
         };
 
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
+        // 確保 DOM 準備好後再執行
+        window.addEventListener('DOMContentLoaded', () => {
+            const rootEl = document.getElementById('root');
+            if (rootEl) {
+                const root = ReactDOM.createRoot(rootEl);
+                root.render(<App />);
+            }
+        });
     </script>
 </body>
 </html>
