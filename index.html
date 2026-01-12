@@ -48,7 +48,6 @@
             border-radius: 40px; 
             border: 4px solid #E2D9F3; 
             box-shadow: 0 10px 25px rgba(157, 118, 193, 0.1);
-            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
 
         .modal-mask {
@@ -69,10 +68,10 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect, useMemo } = React;
+        const { useState, useEffect, useMemo, useCallback } = React;
 
         // ==========================================================
-        // 🛠️ 填寫區：已經根據您提供的資訊自動填入
+        // 🛠️ Firebase Config
         // ==========================================================
         const mySecretFirebaseConfig = {
             apiKey: "AIzaSyCAb0qAoOh0A88-wuRz-Gk_cU5f2vIOd3c",
@@ -82,40 +81,26 @@
             messagingSenderId: "545717934606",
             appId: "1:545717934606:web:0d6ba3dd86addc76a77a5f"
         };
-        // ==========================================================
 
-        // --- 初始化邏輯 ---
-        let finalConfig = null;
-        try {
-            if (typeof __firebase_config !== 'undefined' && __firebase_config) {
-                finalConfig = JSON.parse(__firebase_config);
-            } else {
-                finalConfig = mySecretFirebaseConfig;
-            }
-        } catch (e) { 
-            finalConfig = mySecretFirebaseConfig; 
+        // 初始化
+        if (!firebase.apps.length) {
+            firebase.initializeApp(mySecretFirebaseConfig);
         }
 
-        const isConfigValid = finalConfig && finalConfig.apiKey && finalConfig.apiKey.length > 15;
-        
-        if (isConfigValid && !firebase.apps.length) {
-            firebase.initializeApp(finalConfig);
-        }
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+        const appId = "fukuoka-2026";
 
-        const auth = isConfigValid ? firebase.auth() : null;
-        const db = isConfigValid ? firebase.firestore() : null;
-        // 使用您的專案 ID 作為路徑辨識
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'fukuoka-2026';
-
+        // 優化後的圖標組件
         const Icon = ({ name, className = "w-6 h-6", size }) => {
-            useEffect(() => { if (window.lucide) window.lucide.createIcons(); }, [name]);
             return <i data-lucide={name} className={className} style={size ? {width:size, height:size} : {}}></i>;
         };
 
         const App = () => {
             const [user, setUser] = useState(null);
-            const [activeTab, setActiveTab] = useState('expense');
+            const [authStatus, setAuthStatus] = useState('connecting');
             const [expenses, setExpenses] = useState([]);
+            const [activeTab, setActiveTab] = useState('expense');
             const [fxInput, setFxInput] = useState('');
             const exchangeRate = 0.211;
             const [newExpense, setNewExpense] = useState({ 
@@ -127,18 +112,15 @@
 
             const members = ['KCY', 'Ruby', 'YSL', 'Tsai'];
 
-            // 1. 匿名登入
+            // 1. 登入
             useEffect(() => {
-                if (!isConfigValid || !auth) return;
                 const initAuth = async () => {
                     try {
-                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                            await auth.signInWithCustomToken(__initial_auth_token);
-                        } else {
-                            await auth.signInAnonymously();
-                        }
+                        await auth.signInAnonymously();
+                        setAuthStatus('success');
                     } catch (e) { 
-                        console.error("Auth error: 請確保 Firebase 已開啟『匿名登入』功能"); 
+                        console.error("登入失敗", e);
+                        setAuthStatus('error');
                     }
                 };
                 initAuth();
@@ -146,18 +128,29 @@
                 return () => unsubscribe();
             }, []);
 
-            // 2. 即時監聽雲端資料
+            // 2. 監聽與圖標刷新優化
             useEffect(() => {
-                if (!user || !db) return;
-                const path = `artifacts/${appId}/public/data`;
-                const unsubExpense = db.collection(`${path}/expenses`).onSnapshot(snap => {
+                if (!user) return;
+                const path = `artifacts/${appId}/public/data/expenses`;
+                const unsubExpense = db.collection(path).onSnapshot(snap => {
                     const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-                    setExpenses(docs.sort((a, b) => new Date(b.date) - new Date(a.date)));
-                }, (err) => {
-                    console.error("Firestore error: 請確保資料庫規則已設為『測試模式』或允許讀寫");
+                    // 安全排序邏輯，防止 Invalid Date 導致崩潰
+                    const sorted = docs.sort((a, b) => {
+                        const dateA = a.date ? new Date(a.date).getTime() : 0;
+                        const dateB = b.date ? new Date(b.date).getTime() : 0;
+                        return dateB - dateA;
+                    });
+                    setExpenses(sorted);
+                    // 確保畫面更新後圖標被正確渲染
+                    setTimeout(() => { if(window.lucide) window.lucide.createIcons(); }, 100);
                 });
                 return () => unsubExpense();
             }, [user]);
+
+            // 切換分頁時刷新圖標
+            useEffect(() => {
+                setTimeout(() => { if(window.lucide) window.lucide.createIcons(); }, 100);
+            }, [activeTab]);
 
             const showToast = (msg) => {
                 setToast({ show: true, msg });
@@ -165,51 +158,52 @@
             };
 
             const addExpense = async () => {
-                if (!newExpense.item || !newExpense.amount || !user) return;
+                if (!newExpense.item || !newExpense.amount || !user) {
+                    alert("請填寫品項與金額唷！💜");
+                    return;
+                }
+
                 setIsSaving(true);
                 try {
                     const id = `exp-${Date.now()}`;
-                    await db.doc(`artifacts/${appId}/public/data/expenses/${id}`).set({
+                    const path = `artifacts/${appId}/public/data/expenses/${id}`;
+                    await db.doc(path).set({
                         ...newExpense,
-                        amount: parseFloat(newExpense.amount),
-                        amountTwd: Math.round(parseFloat(newExpense.amount) * exchangeRate),
+                        amount: parseFloat(newExpense.amount) || 0,
+                        amountTwd: Math.round((parseFloat(newExpense.amount) || 0) * exchangeRate),
                         createdAt: firebase.firestore.FieldValue.serverTimestamp()
                     });
-                    setNewExpense({ ...newExpense, item: '', amount: '' });
+                    // 重設表單
+                    setNewExpense({ 
+                        date: new Date().toISOString().split('T')[0], 
+                        payer: newExpense.payer, 
+                        item: '', 
+                        amount: '' 
+                    });
                     showToast("已存入雲端 💜");
                 } catch (e) {
-                    alert("儲存失敗，請檢查網路或 Firebase 設定");
-                } finally { setIsSaving(false); }
+                    alert("儲存失敗：" + e.message);
+                } finally { 
+                    setIsSaving(false); 
+                }
             };
 
             const deleteItem = async (id) => {
-                if (!window.confirm("確定要刪除嗎？")) return;
-                await db.doc(`artifacts/${appId}/public/data/expenses/${id}`).delete();
-                showToast("已從雲端移除");
+                if (!window.confirm("確定要刪除這筆紀錄嗎？")) return;
+                try {
+                    await db.doc(`artifacts/${appId}/public/data/expenses/${id}`).delete();
+                    showToast("已從雲端移除");
+                } catch (e) {
+                    alert("刪除失敗");
+                }
             };
-
-            if (!isConfigValid) {
-                return (
-                    <div className="flex flex-col items-center justify-center min-h-screen bg-white p-10 text-center animate-in fade-in duration-700">
-                        <div className="bg-purple-100 p-8 rounded-full mb-8">
-                            <Icon name="settings" className="w-16 h-16 text-purple-500 animate-spin-slow" />
-                        </div>
-                        <h1 className="text-3xl font-black text-slate-800 mb-4">尚未完成雲端設定</h1>
-                        <p className="text-slate-500 mb-8 leading-relaxed">
-                            您正嘗試在 GitHub 執行此 App。<br/>
-                            請在 index.html 檔案上方填寫您的 <br/>
-                            <span className="font-bold text-purple-600 underline">firebaseConfig</span> 金鑰資訊。
-                        </p>
-                    </div>
-                );
-            }
 
             return (
                 <div className="max-w-md mx-auto min-h-screen relative pb-32">
                     {/* Toast 成功提示 */}
                     <div className={`fixed top-10 left-1/2 -translate-x-1/2 z-[200] transition-all duration-500 ${toast.show ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-10 pointer-events-none'}`}>
                         <div className="bg-black/80 text-white px-8 py-4 rounded-full flex items-center gap-3 shadow-2xl border border-purple-400 backdrop-blur-md">
-                            <Icon name="check-circle-2" className="text-pink-400 w-5 h-5" />
+                            <Icon name="check-circle-2" className="text-pink-400 w-6 h-6" />
                             <span className="font-bold text-lg">{toast.msg}</span>
                         </div>
                     </div>
@@ -229,54 +223,60 @@
 
                     <div className="px-8 py-10">
                         {activeTab === 'expense' && (
-                            <div className="space-y-12 animate-in fade-in duration-500">
-                                {/* 匯率換算卡片 */}
+                            <div className="space-y-12">
+                                {/* 匯率換算 */}
                                 <div className="bg-[#2D2727] text-white p-12 rounded-[60px] shadow-2xl relative overflow-hidden">
                                     <div className="absolute -right-6 -bottom-6 opacity-10 rotate-12"><Icon name="coins" size={200} /></div>
                                     <p className="text-md text-[#FF91C1] font-black uppercase tracking-[0.3em] mb-8">JPY ⮕ TWD 即時換算</p>
                                     <div className="flex items-center justify-between">
-                                        <input type="number" value={fxInput} onChange={(e) => setFxInput(e.target.value)} placeholder="0" className="flex-1 bg-transparent text-7xl font-black focus:outline-none placeholder:text-white/10 tracking-tighter" />
-                                        <div className="text-right">
+                                        <input type="number" value={fxInput} onChange={(e) => setFxInput(e.target.value)} placeholder="0" className="flex-1 bg-transparent text-7xl font-black focus:outline-none placeholder:text-white/10 tracking-tighter w-full" />
+                                        <div className="text-right flex-shrink-0">
                                             <p className="text-xs opacity-40 font-black mb-1">NT$</p>
-                                            <p className="text-6xl font-black text-[#FF91C1] tracking-tighter">{Math.round((parseFloat(fxInput) || 0) * exchangeRate).toLocaleString()}</p>
+                                            <p className="text-6xl font-black text-[#FF91C1] tracking-tighter">
+                                                {Math.round((parseFloat(fxInput) || 0) * exchangeRate).toLocaleString()}
+                                            </p>
                                         </div>
                                     </div>
                                 </div>
                                 
-                                {/* 新增支出表單 */}
-                                <div id="expense-form" className="bg-white rounded-[60px] p-12 space-y-10 shadow-2xl border-[8px] border-purple-100">
+                                {/* 表單 */}
+                                <div className="bg-white rounded-[60px] p-12 space-y-10 shadow-2xl border-[8px] border-purple-100">
                                     <div className="flex justify-between items-center text-slate-800">
                                         <h3 className="text-3xl font-black italic underline decoration-pink-300">新增支出 💜</h3>
-                                        <select value={newExpense.payer} onChange={(e) => setNewExpense({...newExpense, payer: e.target.value})} className="bg-purple-100 rounded-[30px] px-8 py-4 font-black text-lg text-[#9D76C1] outline-none border-none shadow-inner">
-                                            {members.map(m => <option key={m}>{m}</option>)}
+                                        <select value={newExpense.payer} onChange={(e) => setNewExpense({...newExpense, payer: e.target.value})} className="bg-purple-100 rounded-[30px] px-8 py-4 font-black text-lg text-[#9D76C1] outline-none border-none">
+                                            {members.map(m => <option key={m} value={m}>{m}</option>)}
                                         </select>
                                     </div>
                                     <div className="space-y-8">
                                         <input type="date" value={newExpense.date} onChange={(e) => setNewExpense({...newExpense, date: e.target.value})} className="w-full border-b-6 border-purple-50 pb-6 text-2xl font-black focus:border-purple-400 outline-none bg-transparent" />
-                                        <input placeholder="買了什麼好東西？" value={newExpense.item} onChange={(e) => setNewExpense({...newExpense, item: e.target.value})} className="w-full border-b-6 border-purple-50 pb-6 text-2xl font-black focus:border-purple-400 outline-none" />
+                                        <input placeholder="買了什麼？" value={newExpense.item} onChange={(e) => setNewExpense({...newExpense, item: e.target.value})} className="w-full border-b-6 border-purple-50 pb-6 text-2xl font-black focus:border-purple-400 outline-none" />
                                         <input type="number" placeholder="日幣金額 ¥" value={newExpense.amount} onChange={(e) => setNewExpense({...newExpense, amount: e.target.value})} className="w-full border-4 border-purple-50 p-7 text-3xl font-black focus:border-purple-400 outline-none bg-slate-50 rounded-[40px]" />
                                     </div>
-                                    <button onClick={addExpense} disabled={isSaving || !user} className="w-full kuromi-gradient text-white py-10 rounded-[50px] font-black text-3xl shadow-xl active:scale-95 flex items-center justify-center gap-4 disabled:opacity-50">
+                                    <button 
+                                        onClick={addExpense} 
+                                        disabled={isSaving} 
+                                        className="w-full kuromi-gradient text-white py-10 rounded-[50px] font-black text-3xl shadow-xl active:scale-95 flex items-center justify-center gap-4"
+                                    >
                                         {isSaving ? <Icon name="refresh-cw" className="animate-spin" /> : "紀錄到雲端 💜"}
                                     </button>
                                 </div>
 
-                                {/* 開銷明細列表 */}
+                                {/* 列表 */}
                                 {expenses.map(ex => (
-                                    <div key={ex.id} className="kuromi-card p-10 flex justify-between items-center border-l-[25px] border-l-[#9D76C1] shadow-xl animate-in slide-in-from-right">
-                                        <div>
+                                    <div key={ex.id} className="kuromi-card p-10 flex justify-between items-center border-l-[25px] border-l-[#9D76C1] shadow-xl">
+                                        <div className="flex-1 mr-4">
                                             <div className="flex items-center gap-4 mb-3">
                                                 <span className="text-sm font-black text-white bg-slate-800 px-4 py-1.5 rounded-xl">{ex.date}</span>
-                                                <span className="text-md text-slate-400 font-black uppercase font-bold tracking-widest">{ex.payer}</span>
+                                                <span className="text-md text-slate-400 font-black uppercase tracking-widest">{ex.payer}</span>
                                             </div>
-                                            <p className="text-4xl font-black text-slate-700">{ex.item}</p>
+                                            <p className="text-4xl font-black text-slate-700 break-words">{ex.item}</p>
                                         </div>
                                         <div className="text-right flex items-center gap-6">
                                             <div>
-                                                <p className="text-5xl font-black text-slate-800 tracking-tighter">¥{ex.amount.toLocaleString()}</p>
-                                                <p className="text-md font-black text-pink-400 tracking-widest">NT${ex.amountTwd.toLocaleString()}</p>
+                                                <p className="text-5xl font-black text-slate-800 tracking-tighter">¥{ex.amount?.toLocaleString()}</p>
+                                                <p className="text-md font-black text-pink-400 tracking-widest">NT${ex.amountTwd?.toLocaleString()}</p>
                                             </div>
-                                            <button onClick={() => deleteItem(ex.id)} className="p-5 bg-red-50 text-red-400 rounded-full active:scale-90 shadow-sm"><Icon name="trash-2" size={32}/></button>
+                                            <button onClick={() => deleteItem(ex.id)} className="p-5 bg-red-50 text-red-400 rounded-full active:scale-90"><Icon name="trash-2" size={32}/></button>
                                         </div>
                                     </div>
                                 ))}
@@ -284,31 +284,28 @@
                         )}
 
                         {activeTab === 'tools' && (
-                            <div className="space-y-16 animate-in fade-in duration-500 text-center">
-                                {/* 飯店資訊 */}
+                            <div className="space-y-16 text-center animate-in fade-in">
                                 <section className="bg-white rounded-[60px] border-[10px] border-[#9D76C1] p-12 shadow-2xl relative">
                                     <Icon name="hotel" className="w-24 h-24 text-purple-200 animate-bounce mx-auto mb-4" />
                                     <h3 className="text-5xl font-black mb-4 text-[#2D2727]">博多西鐵 CROOM</h3>
                                     <p className="text-md text-slate-400 mb-12 font-black uppercase tracking-[0.2em]">櫛田神社前站 4 號出口對面</p>
                                     <div className="flex gap-8">
-                                        <button onClick={() => window.open('https://www.google.com/maps/search/?api=1&query=博多祇園櫛田神社前西鐵克魯姆酒店','_blank')} className="flex-1 kuromi-gradient text-white py-9 rounded-[45px] font-black text-2xl shadow-2xl active:scale-95 transition-all">地圖 📍</button>
-                                        <a href="tel:092-235-0311" className="flex-1 border-6 border-[#2D2727] text-center py-9 rounded-[45px] font-black text-2xl active:scale-95 transition-all shadow-md">撥打 📞</a>
+                                        <button onClick={() => window.open('https://www.google.com/maps/search/?api=1&query=博多祇園櫛田神社前西鐵克魯姆酒店','_blank')} className="flex-1 kuromi-gradient text-white py-9 rounded-[45px] font-black text-2xl shadow-2xl active:scale-95">地圖 📍</button>
+                                        <a href="tel:092-235-0311" className="flex-1 border-6 border-[#2D2727] text-center py-9 rounded-[45px] font-black text-2xl active:scale-95">撥打 📞</a>
                                     </div>
                                 </section>
 
-                                {/* 連線診斷器 */}
                                 <section className="bg-slate-100 p-12 rounded-[60px] border-4 border-dashed border-slate-300 opacity-60">
-                                    <p className="font-black text-slate-500 text-center flex items-center justify-center gap-4 text-xl tracking-[0.1em]">
-                                        <Icon name="shield-check" className={user ? "text-green-500" : "text-slate-400"} /> 
-                                        {user ? "雲端連線正常運作中" : "正在嘗試連接雲端..."}
-                                    </p>
-                                    <p className="text-xs text-slate-400 text-center mt-5 uppercase tracking-[0.4em] font-black">App ID: {appId}</p>
+                                    <h3 className="font-black text-slate-600 mb-6 flex items-center justify-center gap-3"><Icon name="activity" /> 雲端狀態</h3>
+                                    <div className="space-y-4 text-left font-bold text-xs text-slate-500 tracking-widest uppercase">
+                                        <div className="flex justify-between"><span>連線狀態：</span><span className={user ? "text-green-600" : "text-orange-500"}>{user ? "已連線 💜" : "同步中..."}</span></div>
+                                        <div className="flex justify-between"><span>User ID：</span><span className="lowercase">{user ? user.uid.substring(0, 8) + "..." : "---"}</span></div>
+                                    </div>
                                 </section>
                             </div>
                         )}
                     </div>
-
-                    <div className="fixed bottom-0 left-0 right-0 h-10 kuromi-gradient z-[60] shadow-[0_-5px_15px_rgba(0,0,0,0.1)]" />
+                    <div className="fixed bottom-0 left-0 right-0 h-10 kuromi-gradient z-[60]" />
                 </div>
             );
         };
