@@ -43,7 +43,6 @@
             background-size: 20px 20px; 
         }
 
-        /* 縮減圓角與陰影，使其在手機上更精緻 */
         .kuromi-card { 
             background: white; 
             border-radius: 30px; 
@@ -77,9 +76,6 @@
         }
         
         .tab-active { color: #9D76C1; border-bottom: 4px solid #9D76C1; }
-
-        /* 適配小螢幕的滾動優化 */
-        .hide-scrollbar::-webkit-scrollbar { display: none; }
     </style>
 </head>
 <body class="bg-pattern">
@@ -88,7 +84,6 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo } = React;
 
-        // Firebase 配置保持不變
         const firebaseConfig = {
             apiKey: "AIzaSyCAb0qAoOh0A88-wuRz-Gk_cU5f2vIOd3c",
             authDomain: "fukuoka-2026.firebaseapp.com",
@@ -106,6 +101,7 @@
         const db = firebase.firestore();
         const appId = "fukuoka-2026";
 
+        // SVG 圖標組件：強制 pointer-events-none 避免干擾點擊
         const Icon = ({ name, className = "", size = 24 }) => {
             const icons = {
                 'heart': "M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.505 4.04 3 5.5L12 21l7-7Z",
@@ -116,14 +112,13 @@
                 'hotel': "M3 21V9a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v12M7 11h2M7 15h2M15 11h2M15 15h2M11 21v-4a1 1 0 0 1 1-1h0a1 1 0 0 1 1 1v4",
                 'luggage': "M3 14h18M7 21h10M3 7h18a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2zM7 7V4a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v3",
                 'check': "M20 6L9 17l-5-5",
-                'calendar': "M19 4H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z M16 2v4 M8 2v4 M3 10h18",
                 'plus': "M12 5v14M5 12h14",
                 'pencil': "M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z",
                 'chevron-left': "M15 18l-6-6 6-6",
                 'navigation': "M3 11l19-9-9 19-2-8-8-2z"
             };
             return (
-                <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={`${className} pointer-events-none`}>
                     <path d={icons[name] || ""} />
                 </svg>
             );
@@ -152,7 +147,6 @@
             const [isSaving, setIsSaving] = useState(false);
             const [toast, setToast] = useState({ show: false, msg: '' });
 
-            // 成員清單更新
             const members = ['KCY', 'Ruby', 'YSL', 'Tsai'];
             const dates = [
                 { date: '5/30', dayName: 'SAT' }, { date: '5/31', dayName: 'SUN' },
@@ -192,17 +186,23 @@
                 return () => { unsubExp(); unsubItinerary(); };
             }, [user]);
 
-            // --- 強化後的排序邏輯 ---
+            // --- 強化後的數值化排序邏輯 ---
             const currentDayPlans = useMemo(() => {
                 const target = dates[selectedDayIdx].date;
+                
+                // 將時間文字 (例如 "9:30") 轉換為總分鐘數 (570) 以確保排序精確
+                const timeToMinutes = (t) => {
+                    if (!t) return 9999;
+                    const digits = t.match(/\d+/g);
+                    if (!digits || digits.length === 0) return 9999;
+                    const h = parseInt(digits[0], 10);
+                    const m = digits.length > 1 ? parseInt(digits[1], 10) : 0;
+                    return h * 60 + m;
+                };
+
                 return itineraryData
                     .filter(p => p.targetDate === target)
-                    .sort((a, b) => {
-                        // 將時間格式統一（例如 9:00 補為 09:00）後進行字串比較
-                        const timeA = (a.time || "99:99").padStart(5, '0');
-                        const timeB = (b.time || "99:99").padStart(5, '0');
-                        return timeA.localeCompare(timeB);
-                    });
+                    .sort((a, b) => timeToMinutes(a.time) - timeToMinutes(b.time));
             }, [itineraryData, selectedDayIdx]);
 
             const showToast = (msg) => {
@@ -226,12 +226,19 @@
                 } finally { setIsSaving(false); }
             };
 
-            // 保存計畫：修復 id 判斷與狀態清空
+            // 編輯功能修復：明確傳入資料並開啟視窗
+            const handleEditPlan = (e, plan) => {
+                e.preventDefault();
+                e.stopPropagation(); // 阻止事件干擾
+                setEditingPlan(plan);
+                setEditPlanBuffer({ time: plan.time, title: plan.title });
+                setIsEditingPlan(true);
+            };
+
             const savePlan = async () => {
                 if (!editPlanBuffer.time || !editPlanBuffer.title || !user) return;
                 setIsSaving(true);
                 try {
-                    // 若有 editingPlan 則使用其原有 id 進行覆蓋更新，否則新建 id
                     const id = editingPlan ? editingPlan.id : `plan-${Date.now()}`;
                     await db.collection(`artifacts/${appId}/public/data/itinerary`).doc(id).set({
                         ...editPlanBuffer,
@@ -239,28 +246,17 @@
                         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                     }, { merge: true });
                     setIsEditingPlan(false);
-                    setEditingPlan(null); // 存檔完清空編輯狀態
+                    setEditingPlan(null);
                     showToast("行程同步成功 💜");
                 } finally { setIsSaving(false); }
             };
 
-            // 編輯功能修復：確保正確傳遞資料
-            const handleEditPlan = (plan) => {
-                setEditingPlan(plan);
-                setEditPlanBuffer({ time: plan.time, title: plan.title });
-                setIsEditingPlan(true);
-            };
-
-            const deletePlan = async (id) => {
+            const deletePlan = async (e, id) => {
+                e.preventDefault();
+                e.stopPropagation();
                 if (!window.confirm("確定刪除？")) return;
                 await db.collection(`artifacts/${appId}/public/data/itinerary`).doc(id).delete();
                 showToast("行程已移除");
-            };
-
-            const deleteExpense = async (id) => {
-                if (!window.confirm("確定刪除？")) return;
-                await db.collection(`artifacts/${appId}/public/data/expenses`).doc(id).delete();
-                showToast("開銷已移除");
             };
 
             const togglePacking = (itemName) => {
@@ -271,13 +267,12 @@
                 <div className="max-w-md mx-auto min-h-screen relative pb-20">
                     {/* Toast */}
                     <div className={`fixed top-6 left-1/2 -translate-x-1/2 z-[200] transition-all duration-500 ${toast.show ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-10 pointer-events-none'}`}>
-                        <div className="bg-black/90 text-white px-6 py-3 rounded-full flex items-center gap-2 shadow-xl border border-purple-400 backdrop-blur-md text-sm">
+                        <div className="bg-black/90 text-white px-6 py-3 rounded-full flex items-center gap-2 shadow-xl border border-purple-400 backdrop-blur-md text-sm text-center">
                             <Icon name="check-circle" size={18} className="text-pink-400" />
                             <span className="font-bold">{toast.msg}</span>
                         </div>
                     </div>
 
-                    {/* Header 縮小化與名稱更換 */}
                     <header className="kuromi-gradient text-white p-6 pt-10 rounded-b-[40px] shadow-lg text-center relative overflow-hidden">
                         <h1 className="text-4xl font-bold tracking-tighter" style={{ textShadow: '2px 2px 0px rgba(0,0,0,0.2)' }}>福岡 2026</h1>
                         <div className="flex items-center justify-center gap-2 mt-2">
@@ -286,7 +281,6 @@
                         </div>
                     </header>
 
-                    {/* 導覽列 */}
                     <nav className="flex bg-white/95 backdrop-blur-lg sticky top-0 z-50 px-4 border-b-4 border-purple-50 shadow-sm">
                         <button onClick={() => { setActiveTab('itinerary'); setItineraryView('list'); }} className={`flex-1 py-4 font-black text-base transition-all ${activeTab === 'itinerary' ? 'tab-active' : 'text-slate-400'}`}>行程</button>
                         <button onClick={() => setActiveTab('expense')} className={`flex-1 py-4 font-black text-base transition-all ${activeTab === 'expense' ? 'tab-active' : 'text-slate-400'}`}>記帳</button>
@@ -294,7 +288,6 @@
                     </nav>
 
                     <div className="px-5 py-6">
-                        {/* 1. 行程 */}
                         {activeTab === 'itinerary' && (
                             itineraryView === 'list' ? (
                                 <div className="space-y-6 animate-in fade-in">
@@ -327,7 +320,7 @@
                                         </button>
                                         <div>
                                             <h2 className="text-2xl font-black text-slate-800">{dates[selectedDayIdx].date}</h2>
-                                            <p className="text-[10px] font-black text-purple-400 uppercase tracking-widest">本日冒險計畫</p>
+                                            <p className="text-[10px] font-black text-purple-400 uppercase tracking-widest">本日計畫</p>
                                         </div>
                                     </div>
                                     <button onClick={() => { setEditingPlan(null); setEditPlanBuffer({time:'', title:''}); setIsEditingPlan(true); }} 
@@ -343,17 +336,17 @@
                                                     <div className="flex gap-2">
                                                         <button 
                                                             type="button"
-                                                            onClick={(e) => { e.stopPropagation(); handleEditPlan(plan); }} 
-                                                            className="p-2 bg-purple-50 text-purple-400 rounded-full active:scale-75 border border-purple-100"
+                                                            onClick={(e) => handleEditPlan(e, plan)} 
+                                                            className="p-3 bg-purple-50 text-purple-400 rounded-full active:scale-75 border border-purple-100 touch-manipulation"
                                                         >
-                                                            <Icon name="pencil" size={16} />
+                                                            <Icon name="pencil" size={18} />
                                                         </button>
                                                         <button 
                                                             type="button"
-                                                            onClick={(e) => { e.stopPropagation(); deletePlan(plan.id); }} 
-                                                            className="p-2 bg-red-50 text-red-400 rounded-full active:scale-75 border border-red-100"
+                                                            onClick={(e) => deletePlan(e, plan.id)} 
+                                                            className="p-3 bg-red-50 text-red-400 rounded-full active:scale-75 border border-red-100 touch-manipulation"
                                                         >
-                                                            <Icon name="trash" size={16} />
+                                                            <Icon name="trash" size={18} />
                                                         </button>
                                                     </div>
                                                 </div>
@@ -384,14 +377,14 @@
                                     </div>
                                 </div>
                                 <div className="bg-white rounded-[40px] p-8 space-y-6 shadow-xl border-4 border-purple-50">
-                                    <div className="flex justify-between items-center text-slate-800">
-                                        <h3 className="text-lg font-black underline decoration-pink-300 decoration-4">新增花費 💜</h3>
-                                        <select value={newExpense.payer} onChange={(e) => setNewExpense({...newExpense, payer: e.target.value})} className="bg-purple-50 rounded-full px-4 py-2 font-black text-xs text-[#9D76C1] outline-none">
-                                            {members.map(m => <option key={m} value={m}>{m}</option>)}
-                                        </select>
-                                    </div>
+                                    <h3 className="text-lg font-black underline decoration-pink-300 decoration-4">新增花費 💜</h3>
                                     <div className="space-y-4">
-                                        <input type="date" value={newExpense.date} onChange={(e) => setNewExpense({...newExpense, date: e.target.value})} className="w-full border-b-2 border-purple-50 pb-2 text-sm font-black focus:border-purple-400 outline-none bg-transparent" />
+                                        <div className="flex gap-4">
+                                            <input type="date" value={newExpense.date} onChange={(e) => setNewExpense({...newExpense, date: e.target.value})} className="flex-1 border-b-2 border-purple-50 pb-2 text-sm font-black focus:border-purple-400 outline-none bg-transparent" />
+                                            <select value={newExpense.payer} onChange={(e) => setNewExpense({...newExpense, payer: e.target.value})} className="bg-purple-50 rounded-full px-4 py-2 font-black text-xs text-[#9D76C1] outline-none">
+                                                {members.map(m => <option key={m} value={m}>{m}</option>)}
+                                            </select>
+                                        </div>
                                         <input placeholder="買了什麼？" value={newExpense.item} onChange={(e) => setNewExpense({...newExpense, item: e.target.value})} className="w-full border-b-2 border-purple-50 pb-2 text-sm font-black focus:border-purple-400 outline-none" />
                                         <input type="number" placeholder="金額 ¥" value={newExpense.amount} onChange={(e) => setNewExpense({...newExpense, amount: e.target.value})} className="w-full border-2 border-purple-50 p-4 text-xl font-black focus:border-purple-400 outline-none bg-slate-50 rounded-2xl" />
                                     </div>
@@ -413,7 +406,7 @@
                                                 <p className="text-2xl font-black text-slate-800">¥{ex.amount?.toLocaleString()}</p>
                                                 <p className="text-[10px] font-black text-pink-400">NT${ex.amountTwd?.toLocaleString()}</p>
                                             </div>
-                                            <button onClick={() => deleteExpense(ex.id)} className="p-2 bg-red-50 text-red-400 rounded-full border border-red-50"><Icon name="trash" size={14}/></button>
+                                            <button onClick={() => { if(window.confirm("刪除這筆開銷？")) db.collection(`artifacts/${appId}/public/data/expenses`).doc(ex.id).delete(); }} className="p-2 bg-red-50 text-red-400 rounded-full border border-red-50"><Icon name="trash" size={14}/></button>
                                         </div>
                                     </div>
                                 ))}
@@ -462,12 +455,12 @@
                         )}
                     </div>
 
-                    {/* 行程編輯彈窗 - 修正編輯與排序邏輯 */}
+                    {/* 行程編輯彈窗 */}
                     {isEditingPlan && (
                         <div className="fixed inset-0 z-[110] modal-mask flex items-center justify-center p-6">
                             <div className="bg-white w-full rounded-[40px] p-10 shadow-2xl space-y-8 border-8 border-purple-50 animate-in zoom-in">
                                 <h3 className="text-2xl font-black text-slate-800 underline decoration-pink-300 decoration-4 underline-offset-4">
-                                    {editingPlan ? '修改冒險 ✏️' : '新增冒險 ✏️'}
+                                    {editingPlan ? '修改計畫 ✏️' : '新增計畫 ✏️'}
                                 </h3>
                                 <div className="space-y-6 text-left">
                                     <div>
