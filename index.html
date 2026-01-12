@@ -139,7 +139,6 @@
             const [fxInput, setFxInput] = useState('');
             const exchangeRate = 0.211;
 
-            // 用於儲存行李分類的開合狀態，預設全部展開
             const [expandedCats, setExpandedCats] = useState({
                 '一、證件與金錢': true,
                 '二、Ruby 寶寶專區': true,
@@ -193,18 +192,20 @@
                 const unsubExp = db.collection(`${pathBase}/expenses`).onSnapshot(snap => {
                     const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
                     setExpenses(docs.sort((a, b) => (b.date || "").localeCompare(a.date || "")));
-                });
+                }, err => console.error(err));
 
                 const unsubItinerary = db.collection(`${pathBase}/itinerary`).onSnapshot(snap => {
                     const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
                     setItineraryData(docs);
-                });
+                }, err => console.error(err));
 
                 return () => { unsubExp(); unsubItinerary(); };
             }, [user]);
 
             const currentDayPlans = useMemo(() => {
-                const target = dates[selectedDayIdx].date;
+                const day = dates[selectedDayIdx];
+                if (!day) return [];
+                const target = day.date;
                 const timeToMinutes = (t) => {
                     if (!t) return 9999;
                     const digits = t.match(/\d+/g);
@@ -278,14 +279,12 @@
                 setPackingItems(prev => ({ ...prev, [itemName]: !prev[itemName] }));
             };
 
-            // 切換分類摺疊狀態
             const toggleCategory = (catName) => {
                 setExpandedCats(prev => ({ ...prev, [catName]: !prev[catName] }));
             };
 
             return (
                 <div className="max-w-md mx-auto min-h-screen relative pb-20">
-                    {/* Toast */}
                     <div className={`fixed top-6 left-1/2 -translate-x-1/2 z-[200] transition-all duration-500 ${toast.show ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-10 pointer-events-none'}`}>
                         <div className="bg-black/90 text-white px-6 py-3 rounded-full flex items-center gap-2 shadow-xl border border-purple-400 backdrop-blur-md text-sm text-center">
                             <Icon name="check-circle" size={18} className="text-pink-400" />
@@ -336,7 +335,7 @@
                                             <Icon name="chevron-left" size={20} />
                                         </button>
                                         <div>
-                                            <h2 className="text-3xl font-black text-slate-800">{dates[selectedDayIdx].date}</h2>
+                                            <h2 className="text-3xl font-black text-slate-800">{dates[selectedDayIdx]?.date}</h2>
                                             <p className="text-[10px] font-black text-purple-400 uppercase tracking-widest">本日計畫</p>
                                         </div>
                                     </div>
@@ -417,7 +416,7 @@
                                 <section className="text-center">
                                     <div className="bg-white rounded-[40px] border-4 border-[#9D76C1] p-8 shadow-xl relative">
                                         <Icon name="hotel" size={40} className="text-purple-200 mx-auto mb-2 animate-bounce" />
-                                        <h3 className="text-2xl font-black mb-1 text-[#2D2727]">博多西鐵 CROOM</h3>
+                                        <h3 className="text-3xl font-black mb-1 text-[#2D2727]">博多西鐵 CROOM</h3>
                                         <p className="text-[10px] text-slate-400 mb-6 font-black tracking-widest">博多祇園櫛田神社前站</p>
                                         <div className="flex gap-4">
                                             <button onClick={() => window.open('https://www.google.com/maps/search/?api=1&query=博多祇園櫛田神社前西鐵克魯姆酒店','_blank')} className="flex-1 kuromi-gradient text-white py-4 rounded-2xl font-black text-sm shadow-md">地圖定位</button>
@@ -435,7 +434,6 @@
                                         const isExpanded = expandedCats[cat.category];
                                         return (
                                             <div key={idx} className="mb-6">
-                                                {/* 🛠️ 修復點：加大分類標題並支援點擊收合 */}
                                                 <div 
                                                     onClick={() => toggleCategory(cat.category)}
                                                     className="flex items-center justify-between bg-white/50 p-4 rounded-3xl active:bg-purple-100 transition-all cursor-pointer"
@@ -446,7 +444,6 @@
                                                     <Icon name={isExpanded ? "chevron-down" : "chevron-right"} size={24} className="text-purple-300" />
                                                 </div>
                                                 
-                                                {/* 根據狀態顯示或隱藏清單 */}
                                                 {isExpanded && (
                                                     <div className="space-y-3 px-2 mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
                                                         {cat.items.map(item => {
@@ -477,7 +474,7 @@
                                 <div className="space-y-6 text-left">
                                     <div>
                                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">預計時間</label>
-                                        <input value={editPlanBuffer.time} onChange={(e) => setEditPlanBuffer({...editPlanBuffer, time: e.target.value})} placeholder="14:30" className="w-full border-2 border-purple-50 p-4 text-3xl font-black focus:border-purple-400 outline-none bg-slate-50 rounded-2xl mt-1" />
+                                        <input value={editPlanBuffer.time} onChange={(e) => setEditPlanBuffer({...editPlanBuffer, time: e.target.value})} placeholder="14:30" className="w-full border-2 border-purple-50 p-4 text-2xl font-black focus:border-purple-400 outline-none bg-slate-50 rounded-2xl mt-1" />
                                     </div>
                                     <div>
                                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">計畫內容</label>
@@ -496,13 +493,12 @@
             );
         };
 
-        window.addEventListener('DOMContentLoaded', () => {
-            const rootEl = document.getElementById('root');
-            if (rootEl) {
-                const root = ReactDOM.createRoot(rootEl);
-                root.render(<App />);
-            }
-        });
+        // 🛡️ 修復掛載邏輯，確保 Root 存在且不會發生空轉
+        const rootElement = document.getElementById('root');
+        if (rootElement) {
+            const root = ReactDOM.createRoot(rootElement);
+            root.render(<App />);
+        }
     </script>
 </body>
 </html>
