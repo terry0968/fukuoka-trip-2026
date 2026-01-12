@@ -101,7 +101,6 @@
         const db = firebase.firestore();
         const appId = "fukuoka-2026";
 
-        // SVG 圖標組件：強制 pointer-events-none 確保不干擾點擊
         const Icon = ({ name, className = "", size = 24 }) => {
             const icons = {
                 'heart': "M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.505 4.04 3 5.5L12 21l7-7Z",
@@ -156,7 +155,6 @@
                 { date: '6/5', dayName: 'FRI' }, { date: '6/6', dayName: 'SAT' }
             ];
 
-            // 詳細清單內容
             const packingListTemplate = [
                 { category: '一、證件與金錢', items: ['護照 (正本+影本)', 'Visit Japan Web QR Code', '日幣現金', '信用卡/悠遊卡', '旅遊保險證明書'] },
                 { category: '二、Ruby 寶寶專區', items: ['足量尿布 & 濕紙巾', '奶粉分裝包 & 奶瓶', '副食品 & 寶寶零食', '寶寶餐具 & 圍兜', '手推車 & 防雨罩', '小毯子 & 換洗衣物'] },
@@ -191,11 +189,8 @@
                 return () => { unsubExp(); unsubItinerary(); };
             }, [user]);
 
-            // --- 強化後的數值化排序邏輯 ---
             const currentDayPlans = useMemo(() => {
                 const target = dates[selectedDayIdx].date;
-                
-                // 將時間文字 (例如 "9:30") 轉換為總分鐘數 (570) 以確保排序精確
                 const timeToMinutes = (t) => {
                     if (!t) return 9999;
                     const digits = t.match(/\d+/g);
@@ -231,7 +226,6 @@
                 } finally { setIsSaving(false); }
             };
 
-            // 編輯功能修復：移除事件冒泡干擾，確保資料傳遞
             const openEditModal = (e, plan) => {
                 e.preventDefault();
                 e.stopPropagation(); 
@@ -278,26 +272,28 @@
                         </div>
                     </div>
 
-                    {/* Header */}
+                    {/* Header: 加大標題 */}
                     <header className="kuromi-gradient text-white p-6 pt-10 rounded-b-[40px] shadow-lg text-center relative overflow-hidden">
-                        <h1 className="text-4xl font-bold tracking-tighter" style={{ textShadow: '2px 2px 0px rgba(0,0,0,0.2)' }}>福岡 2026</h1>
+                        <h1 className="text-5xl font-bold tracking-tighter" style={{ textShadow: '2px 2px 0px rgba(0,0,0,0.2)' }}>福岡 2026</h1>
                         <div className="flex items-center justify-center gap-2 mt-2">
                             <span className="bg-black/30 px-3 py-1 rounded-full text-[10px] uppercase tracking-widest">SHEN FAMILY TRIP</span>
                             <Icon name="heart" size={14} className="fill-pink-400 text-pink-400 animate-pulse" />
                         </div>
                     </header>
 
+                    {/* 導覽列：加大字體 */}
                     <nav className="flex bg-white/95 backdrop-blur-lg sticky top-0 z-50 px-4 border-b-4 border-purple-50 shadow-sm">
-                        <button onClick={() => { setActiveTab('itinerary'); setItineraryView('list'); }} className={`flex-1 py-4 font-black text-base transition-all ${activeTab === 'itinerary' ? 'tab-active' : 'text-slate-400'}`}>行程</button>
-                        <button onClick={() => setActiveTab('expense')} className={`flex-1 py-4 font-black text-base transition-all ${activeTab === 'expense' ? 'tab-active' : 'text-slate-400'}`}>記帳</button>
-                        <button onClick={() => setActiveTab('tools')} className={`flex-1 py-4 font-black text-base transition-all ${activeTab === 'tools' ? 'tab-active' : 'text-slate-400'}`}>工具</button>
+                        <button onClick={() => { setActiveTab('itinerary'); setItineraryView('list'); }} className={`flex-1 py-4 font-black text-lg transition-all ${activeTab === 'itinerary' ? 'tab-active' : 'text-slate-400'}`}>行程</button>
+                        <button onClick={() => setActiveTab('expense')} className={`flex-1 py-4 font-black text-lg transition-all ${activeTab === 'expense' ? 'tab-active' : 'text-slate-400'}`}>記帳</button>
+                        <button onClick={() => setActiveTab('tools')} className={`flex-1 py-4 font-black text-lg transition-all ${activeTab === 'tools' ? 'tab-active' : 'text-slate-400'}`}>工具</button>
                     </nav>
 
                     <div className="px-5 py-6">
+                        {/* 1. 行程：加大分頁標題 */}
                         {activeTab === 'itinerary' && (
                             itineraryView === 'list' ? (
                                 <div className="space-y-6 animate-in fade-in">
-                                    <h2 className="text-xl font-black text-slate-800 px-1 flex justify-between items-center">
+                                    <h2 className="text-2xl font-black text-slate-800 px-1 flex justify-between items-center">
                                         冒險計畫表 💜
                                         {!user && <span className="text-[10px] animate-pulse">連線中...</span>}
                                     </h2>
@@ -306,7 +302,7 @@
                                             <div key={day.date} onClick={() => { setSelectedDayIdx(idx); setItineraryView('detail'); }} 
                                                  className="kuromi-card p-6 flex flex-col items-center justify-center text-center relative active:scale-95 border-b-[8px] border-b-[#9D76C1]">
                                                 <span className="text-[10px] font-black text-purple-300 uppercase mb-1">{day.dayName}</span>
-                                                <span className="text-4xl font-black text-slate-700 mb-2">{day.date.split('/')[1]}</span>
+                                                <span className="text-5xl font-black text-slate-700 mb-2">{day.date.split('/')[1]}</span>
                                                 <span className="text-[10px] font-black text-white bg-purple-400 px-3 py-1 rounded-full">{day.date}</span>
                                                 {itineraryData.some(p => p.targetDate === day.date) && <div className="absolute top-4 right-4 w-3 h-3 bg-pink-400 rounded-full animate-pulse border-2 border-white shadow-sm" />}
                                             </div>
@@ -315,7 +311,7 @@
                                     <button onClick={() => window.open('https://maps.app.goo.gl/pd5Mgn8orC6EG7dc6', '_blank')} 
                                             className="w-full bg-[#2D2727] text-white py-5 rounded-[30px] flex items-center justify-center gap-3 shadow-lg active:scale-95 border-2 border-purple-900/10">
                                         <Icon name="navigation" size={20} className="text-pink-400" />
-                                        <span className="font-black text-lg tracking-wider">地圖行程</span>
+                                        <span className="font-black text-xl tracking-wider">地圖行程</span>
                                     </button>
                                 </div>
                             ) : (
@@ -325,38 +321,38 @@
                                             <Icon name="chevron-left" size={20} />
                                         </button>
                                         <div>
-                                            <h2 className="text-2xl font-black text-slate-800">{dates[selectedDayIdx].date}</h2>
+                                            <h2 className="text-3xl font-black text-slate-800">{dates[selectedDayIdx].date}</h2>
                                             <p className="text-[10px] font-black text-purple-400 uppercase tracking-widest">本日計畫</p>
                                         </div>
                                     </div>
                                     <button onClick={() => { setEditingPlan(null); setEditPlanBuffer({time:'', title:''}); setIsEditingPlan(true); }} 
                                             className="w-full bg-white border-2 border-dashed border-purple-200 text-purple-500 py-6 rounded-[30px] flex items-center justify-center gap-2 active:scale-95 shadow-inner">
                                         <Icon name="plus" size={20} />
-                                        <span className="font-black text-xl">新增計畫</span>
+                                        <span className="font-black text-2xl">新增計畫</span>
                                     </button>
                                     <div className="space-y-4">
                                         {currentDayPlans.map(plan => (
                                             <div key={plan.id} className="kuromi-card p-5 flex flex-col border-l-[15px] border-l-[#9D76C1] shadow-md">
                                                 <div className="flex justify-between items-center mb-4">
                                                     <span className="text-xs font-black text-white bg-slate-800 px-3 py-1 rounded-full">{plan.time}</span>
-                                                    <div className="flex gap-2">
+                                                    <div className="flex gap-1">
                                                         <button 
                                                             type="button"
                                                             onClick={(e) => openEditModal(e, plan)} 
-                                                            className="w-10 h-10 flex items-center justify-center bg-purple-50 text-purple-400 rounded-full active:scale-75 border border-purple-100 touch-manipulation z-10"
+                                                            className="w-12 h-12 flex items-center justify-center bg-purple-50 text-purple-400 rounded-full active:scale-75 border border-purple-100 touch-manipulation z-10"
                                                         >
-                                                            <Icon name="pencil" size={18} />
+                                                            <Icon name="pencil" size={20} />
                                                         </button>
                                                         <button 
                                                             type="button"
                                                             onClick={(e) => deletePlan(e, plan.id)} 
-                                                            className="w-10 h-10 flex items-center justify-center bg-red-50 text-red-400 rounded-full active:scale-75 border border-red-100 touch-manipulation z-10"
+                                                            className="w-12 h-12 flex items-center justify-center bg-red-50 text-red-400 rounded-full active:scale-75 border border-red-100 touch-manipulation z-10"
                                                         >
-                                                            <Icon name="trash" size={18} />
+                                                            <Icon name="trash" size={20} />
                                                         </button>
                                                     </div>
                                                 </div>
-                                                <h3 className="text-xl font-black text-slate-700 leading-tight">{plan.title}</h3>
+                                                <h3 className="text-2xl font-black text-slate-700 leading-tight">{plan.title}</h3>
                                             </div>
                                         ))}
                                     </div>
@@ -364,6 +360,7 @@
                             )
                         )}
 
+                        {/* 2. 記帳：加大匯率換算結果 */}
                         {activeTab === 'expense' && (
                             <div className="space-y-6 animate-in fade-in">
                                 <div className="bg-[#2D2727] text-white p-8 rounded-[40px] shadow-xl relative overflow-hidden">
@@ -372,12 +369,12 @@
                                         <input type="number" value={fxInput} onChange={(e) => setFxInput(e.target.value)} placeholder="0" className="flex-1 bg-transparent text-5xl font-black focus:outline-none placeholder:text-white/10 w-full" />
                                         <div className="text-right flex-shrink-0">
                                             <p className="text-[10px] opacity-40 font-black mb-0.5">NT$</p>
-                                            <p className="text-4xl font-black text-[#FF91C1]">{Math.round((parseFloat(fxInput) || 0) * exchangeRate).toLocaleString()}</p>
+                                            <p className="text-5xl font-black text-[#FF91C1]">{Math.round((parseFloat(fxInput) || 0) * exchangeRate).toLocaleString()}</p>
                                         </div>
                                     </div>
                                 </div>
                                 <div className="bg-white rounded-[40px] p-8 space-y-6 shadow-xl border-4 border-purple-50">
-                                    <h3 className="text-lg font-black underline decoration-pink-300 decoration-4">新增花費 💜</h3>
+                                    <h3 className="text-xl font-black underline decoration-pink-300 decoration-4">新增花費 💜</h3>
                                     <div className="space-y-4">
                                         <div className="flex gap-4">
                                             <input type="date" value={newExpense.date} onChange={(e) => setNewExpense({...newExpense, date: e.target.value})} className="flex-1 border-b-2 border-purple-50 pb-2 text-sm font-black focus:border-purple-400 outline-none bg-transparent" />
@@ -388,7 +385,7 @@
                                         <input placeholder="買了什麼？" value={newExpense.item} onChange={(e) => setNewExpense({...newExpense, item: e.target.value})} className="w-full border-b-2 border-purple-50 pb-2 text-sm font-black focus:border-purple-400 outline-none" />
                                         <input type="number" placeholder="金額 ¥" value={newExpense.amount} onChange={(e) => setNewExpense({...newExpense, amount: e.target.value})} className="w-full border-2 border-purple-50 p-4 text-xl font-black focus:border-purple-400 outline-none bg-slate-50 rounded-2xl" />
                                     </div>
-                                    <button onClick={addExpense} disabled={isSaving} className="w-full kuromi-gradient text-white py-4 rounded-full font-black text-xl shadow-lg active:scale-95 flex items-center justify-center gap-2">
+                                    <button onClick={addExpense} disabled={isSaving} className="w-full kuromi-gradient text-white py-4 rounded-full font-black text-2xl shadow-lg active:scale-95 flex items-center justify-center gap-2">
                                         {isSaving ? <Icon name="refresh" className="animate-spin-custom" size={18} /> : "紀錄開銷 💜"}
                                     </button>
                                 </div>
@@ -399,11 +396,11 @@
                                                 <span className="text-[9px] font-black text-white bg-slate-800 px-2 py-0.5 rounded-full">{ex.date}</span>
                                                 <span className="text-[9px] text-slate-400 font-black uppercase">{ex.payer}</span>
                                             </div>
-                                            <p className="text-xl font-black text-slate-700">{ex.item}</p>
+                                            <p className="text-2xl font-black text-slate-700">{ex.item}</p>
                                         </div>
                                         <div className="text-right flex items-center gap-3">
                                             <div>
-                                                <p className="text-2xl font-black text-slate-800">¥{ex.amount?.toLocaleString()}</p>
+                                                <p className="text-3xl font-black text-slate-800">¥{ex.amount?.toLocaleString()}</p>
                                                 <p className="text-[10px] font-black text-pink-400">NT${ex.amountTwd?.toLocaleString()}</p>
                                             </div>
                                             <button onClick={() => { if(window.confirm("刪除這筆開銷？")) db.collection(`artifacts/${appId}/public/data/expenses`).doc(ex.id).delete(); }} className="p-2 bg-red-50 text-red-400 rounded-full border border-red-50"><Icon name="trash" size={14}/></button>
@@ -413,12 +410,13 @@
                             </div>
                         )}
 
+                        {/* 3. 工具：加大行李清單標題 */}
                         {activeTab === 'tools' && (
                             <div className="space-y-10 animate-in fade-in">
                                 <section className="text-center">
                                     <div className="bg-white rounded-[40px] border-4 border-[#9D76C1] p-8 shadow-xl relative">
                                         <Icon name="hotel" size={40} className="text-purple-200 mx-auto mb-2 animate-bounce" />
-                                        <h3 className="text-2xl font-black mb-1 text-[#2D2727]">博多西鐵 CROOM</h3>
+                                        <h3 className="text-3xl font-black mb-1 text-[#2D2727]">博多西鐵 CROOM</h3>
                                         <p className="text-[10px] text-slate-400 mb-6 font-black tracking-widest">博多祇園櫛田神社前站</p>
                                         <div className="flex gap-4">
                                             <button onClick={() => window.open('https://www.google.com/maps/search/?api=1&query=博多祇園櫛田神社前西鐵克魯姆酒店','_blank')} className="flex-1 kuromi-gradient text-white py-4 rounded-2xl font-black text-sm shadow-md">地圖定位</button>
@@ -430,11 +428,11 @@
                                 <section>
                                     <div className="flex items-center gap-3 mb-6 px-1">
                                         <div className="p-3 bg-pink-100 rounded-2xl text-[#FF91C1]"><Icon name="luggage" size={24} /></div>
-                                        <h3 className="text-xl font-black text-slate-800">行李清單 💜</h3>
+                                        <h3 className="text-2xl font-black text-slate-800">行李清單 💜</h3>
                                     </div>
                                     {packingListTemplate.map((cat, idx) => (
                                         <div key={idx} className="mb-8">
-                                            <p className="text-[10px] font-black text-[#9D76C1] mb-4 px-3 border-l-4 border-[#9D76C1] ml-2 uppercase tracking-widest">{cat.category}</p>
+                                            <p className="text-xs font-black text-[#9D76C1] mb-4 px-3 border-l-4 border-[#9D76C1] ml-2 uppercase tracking-widest">{cat.category}</p>
                                             <div className="space-y-3 px-2">
                                                 {cat.items.map(item => {
                                                     const isDone = packingItems[item] === true;
@@ -443,23 +441,13 @@
                                                             <div className={`w-8 h-8 rounded-xl border-2 flex items-center justify-center transition-all ${isDone ? 'bg-[#9D76C1] border-transparent' : 'border-[#E2D9F3]'}`}>
                                                                 {isDone && <Icon name="check" className="text-white" size={16} />}
                                                             </div>
-                                                            <span className={`text-base font-black text-slate-700 ${isDone ? 'packing-text-done' : ''}`}>{item}</span>
+                                                            <span className={`text-lg font-black text-slate-700 ${isDone ? 'packing-text-done' : ''}`}>{item}</span>
                                                         </div>
                                                     );
                                                 })}
                                             </div>
                                         </div>
                                     ))}
-                                    <div className="kuromi-card p-6 bg-[#2D2727] text-white border-none shadow-xl mt-4 mx-2">
-                                        <h4 className="font-bold text-[#FF91C1] mb-4 flex items-center gap-2 text-sm">
-                                            <Icon name="alert" size={16} className="text-[#FF91C1]" /> 托運與手提提醒
-                                        </h4>
-                                        <ul className="text-[11px] space-y-3 opacity-90 font-bold">
-                                            <li>● 液體：手提單件 100ml 內，需裝入透明夾鏈袋。</li>
-                                            <li>● 打火機：限 1 個且必須隨身手提，嚴禁托運。</li>
-                                            <li>● 電池：行動電源嚴禁托運，<b>務必放手提行李</b>。</li>
-                                        </ul>
-                                    </div>
                                 </section>
                             </div>
                         )}
@@ -469,7 +457,7 @@
                     {isEditingPlan && (
                         <div className="fixed inset-0 z-[110] modal-mask flex items-center justify-center p-6">
                             <div className="bg-white w-full rounded-[40px] p-10 shadow-2xl space-y-8 border-8 border-purple-50 animate-in zoom-in">
-                                <h3 className="text-2xl font-black text-slate-800 underline decoration-pink-300 decoration-4 underline-offset-4">
+                                <h3 className="text-3xl font-black text-slate-800 underline decoration-pink-300 decoration-4 underline-offset-4 text-center">
                                     {editingPlan ? '修改計畫 ✏️' : '新增計畫 ✏️'}
                                 </h3>
                                 <div className="space-y-6 text-left">
@@ -479,7 +467,7 @@
                                             value={editPlanBuffer.time} 
                                             onChange={(e) => setEditPlanBuffer({...editPlanBuffer, time: e.target.value})} 
                                             placeholder="14:30" 
-                                            className="w-full border-2 border-purple-50 p-4 text-2xl font-black focus:border-purple-400 outline-none bg-slate-50 rounded-2xl mt-1" 
+                                            className="w-full border-2 border-purple-50 p-4 text-3xl font-black focus:border-purple-400 outline-none bg-slate-50 rounded-2xl mt-1" 
                                         />
                                     </div>
                                     <div>
@@ -488,12 +476,12 @@
                                             value={editPlanBuffer.title} 
                                             onChange={(e) => setEditPlanBuffer({...editPlanBuffer, title: e.target.value})} 
                                             placeholder="要去哪裡呢？" 
-                                            className="w-full border-2 border-purple-50 p-4 text-2xl font-black focus:border-purple-400 outline-none bg-slate-50 rounded-2xl mt-1" 
+                                            className="w-full border-2 border-purple-50 p-4 text-3xl font-black focus:border-purple-400 outline-none bg-slate-50 rounded-2xl mt-1" 
                                         />
                                     </div>
                                 </div>
                                 <div className="flex gap-4 pt-2">
-                                    <button onClick={savePlan} disabled={isSaving} className="flex-1 kuromi-gradient text-white py-5 rounded-full font-black text-xl shadow-lg active:scale-95 disabled:opacity-50">
+                                    <button onClick={savePlan} disabled={isSaving} className="flex-1 kuromi-gradient text-white py-5 rounded-full font-black text-2xl shadow-lg active:scale-95 disabled:opacity-50">
                                         {isSaving ? <Icon name="refresh" className="animate-spin-custom mx-auto" size={24} /> : "儲存 💜"}
                                     </button>
                                     <button onClick={() => { setIsEditingPlan(false); setEditingPlan(null); }} className="px-8 bg-slate-100 text-slate-400 rounded-full font-black text-sm text-center">取消</button>
