@@ -121,7 +121,6 @@
                 'navigation': "M3 11l19-9-9 19-2-8-8-2z",
                 'alert': "M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z M12 9v4 M12 17h.01",
                 'sparkles': "M12 3l1.912 5.886L21 10.8l-5.176 3.914L17.738 21 12 17.114 6.262 21l1.914-6.286L3 10.8l7.088-1.914L12 3z",
-                'shopping': "M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4H6zm-2 4h16M16 10a4 4 0 0 1-8 0",
                 'phone': "M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z",
                 'map-pinned': "M12 22s-8-4.5-8-11.8A8 8 0 0 1 12 2a8 8 0 0 1 8 8.2c0 7.3-8 11.8-8 11.8z M12 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6z",
                 'utensils': "M3 2v7c0 1.1.9 2 2 2h4c1.1 0 2-.9 2-2V2M7 2v20M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"
@@ -137,14 +136,12 @@
             const [user, setUser] = useState(null);
             const [expenses, setExpenses] = useState([]);
             const [itineraryData, setItineraryData] = useState([]);
-            const [wishlistData, setWishlistData] = useState([]);
             const [packingItems, setPackingItems] = useState({});
             const [activeTab, setActiveTab] = useState('itinerary'); 
             const [itineraryView, setItineraryView] = useState('list');
             const [selectedDayIdx, setSelectedDayIdx] = useState(0);
             const [fxJpy, setFxJpy] = useState('');
             const [fxTwd, setFxTwd] = useState('');
-            const [newWish, setNewWish] = useState('');
             const exchangeRate = 0.211;
 
             const [expandedCats, setExpandedCats] = useState({
@@ -152,7 +149,6 @@
                 '四、3C 數位產品': true, '五、藥品與保健': true, '六、盥洗與清潔': true
             });
 
-            // 🛠️ 景點與美食清單資料 (根據連結與福岡熱門點整理)
             const mapSpotList = [
                 { category: '熱門景點 ⛩️', items: ['博多運河城', '櫛田神社', '太宰府天滿宮', '福岡城跡/大濠公園', '福岡塔', 'LaLaport 福岡 (鋼彈)', '海之中道海濱公園'] },
                 { category: '家族美食 🥩', items: ['燒肉 大東園', '一蘭拉麵 總店', '博多華味鳥 (水炊鍋)', '元祖博多明太子飯', '博多牛雜鍋 おおやま', 'bills 福岡 (鬆餅)'] }
@@ -210,10 +206,7 @@
                 const unsubItin = db.collection(`${pathBase}/itinerary`).onSnapshot(snap => {
                     setItineraryData(snap.docs.map(d => ({ id: d.id, ...d.data() })));
                 });
-                const unsubWish = db.collection(`${pathBase}/wishlist`).onSnapshot(snap => {
-                    setWishlistData(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => (b.createdAt||0) - (a.createdAt||0)));
-                });
-                return () => { unsubExp(); unsubItin(); unsubWish(); };
+                return () => { unsubExp(); unsubItin(); };
             }, [user]);
 
             const currentDayPlans = useMemo(() => {
@@ -261,15 +254,17 @@
                 } finally { setIsSaving(false); }
             };
 
-            const addWish = async () => {
-                if (!newWish.trim() || !user) return;
-                await db.collection(`artifacts/${appId}/public/data/wishlist`).add({ text: newWish, done: false, createdAt: Date.now() });
-                setNewWish(''); showToast("願望已加入 💜");
+            const deletePlan = async (e, id) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (!window.confirm("確定刪除？")) return;
+                await db.collection(`artifacts/${appId}/public/data/itinerary`).doc(id).delete();
+                showToast("行程已移除");
             };
 
-            const toggleWish = async (id, currentStatus) => { await db.collection(`artifacts/${appId}/public/data/wishlist`).doc(id).update({ done: !currentStatus }); };
-
-            const deleteItem = async (col, id) => { if(window.confirm("確定刪除？")) await db.collection(`artifacts/${appId}/public/data/${col}`).doc(id).delete(); showToast("已移除"); };
+            const togglePacking = (itemName) => {
+                setPackingItems(prev => ({ ...prev, [itemName]: !prev[itemName] }));
+            };
 
             const toggleCategory = (catName) => { setExpandedCats(prev => ({ ...prev, [catName]: !prev[catName] })); };
 
@@ -298,7 +293,7 @@
                         </div>
                     </header>
 
-                    {/* 導覽列：新增地圖頁籤 */}
+                    {/* 導覽列 */}
                     <nav className="flex bg-white/95 backdrop-blur-lg sticky top-0 z-50 px-2 border-b-4 border-purple-50 shadow-sm overflow-x-auto hide-scrollbar">
                         <button onClick={() => { setActiveTab('itinerary'); setItineraryView('list'); }} className={`flex-1 min-w-[70px] py-5 font-black nav-btn transition-all ${activeTab === 'itinerary' ? 'tab-active' : 'text-slate-400'}`}>行程</button>
                         <button onClick={() => setActiveTab('map')} className={`flex-1 min-w-[70px] py-5 font-black nav-btn transition-all ${activeTab === 'map' ? 'tab-active' : 'text-slate-400'}`}>地圖</button>
@@ -343,7 +338,7 @@
                             )
                         )}
 
-                        {/* 🛠️ 地圖區域：新增景點與美食地點清單 */}
+                        {/* 地圖區域 */}
                         {activeTab === 'map' && (
                             <div className="space-y-8 animate-in fade-in">
                                 <h2 className="text-2xl font-black text-slate-800 px-1 flex items-center gap-3 italic underline decoration-pink-300 decoration-4 underline-offset-4 tracking-wider">景點/美食地圖 🗺️</h2>
@@ -364,7 +359,6 @@
                                     </button>
                                 </div>
 
-                                {/* 🛠️ 新增地點清單區域 */}
                                 <div className="space-y-8 pb-10">
                                     {mapSpotList.map((group, idx) => (
                                         <div key={idx} className="space-y-4">
@@ -374,15 +368,9 @@
                                             </h3>
                                             <div className="grid grid-cols-1 gap-3 px-2">
                                                 {group.items.map((item, i) => (
-                                                    <div 
-                                                        key={i} 
-                                                        onClick={() => openMap(item)}
-                                                        className="kuromi-card p-5 flex items-center justify-between active:scale-95 transition-all shadow-sm border-2 border-purple-50 hover:bg-purple-50/30"
-                                                    >
+                                                    <div key={i} onClick={() => openMap(item)} className="kuromi-card p-5 flex items-center justify-between active:scale-95 transition-all shadow-sm border-2 border-purple-50 hover:bg-purple-50/30">
                                                         <span className="text-lg font-black text-slate-700">{item}</span>
-                                                        <div className="p-3 bg-purple-50 rounded-2xl text-purple-400">
-                                                            <Icon name="navigation" size={18} />
-                                                        </div>
+                                                        <div className="p-3 bg-purple-50 rounded-2xl text-purple-400"><Icon name="navigation" size={18} /></div>
                                                     </div>
                                                 ))}
                                             </div>
@@ -392,7 +380,7 @@
                             </div>
                         )}
 
-                        {/* 2. 記帳區域 */}
+                        {/* 記帳區域 */}
                         {activeTab === 'expense' && (
                             <div className="space-y-6 animate-in fade-in">
                                 <div className="bg-[#2D2727] text-white p-8 rounded-[40px] shadow-xl space-y-6">
@@ -408,33 +396,14 @@
                                     <button onClick={addExpense} disabled={isSaving} className="w-full kuromi-gradient text-white py-4 rounded-full font-black text-2xl shadow-lg flex items-center justify-center gap-2">{isSaving ? <Icon name="refresh" className="animate-spin-custom" size={18} /> : "紀錄開銷 💜"}</button>
                                 </div>
                                 {expenses.map(ex => (
-                                    <div key={ex.id} className="kuromi-card p-5 flex justify-between items-center border-l-[12px] border-l-[#9D76C1] shadow-sm"><div className="flex-1 mr-2"><div className="flex items-center gap-2 mb-1"><span className="text-[9px] font-black text-white bg-slate-800 px-2 py-0.5 rounded-full">{ex.date}</span><span className="text-[9px] text-slate-400 font-black uppercase font-bold">{ex.payer}</span></div><p className="text-2xl font-black text-slate-700">{ex.item}</p></div><div className="text-right flex items-center gap-3"><div><p className="text-3xl font-black text-slate-800">¥{ex.amount?.toLocaleString()}</p><p className="text-[10px] font-black text-pink-400">NT${ex.amountTwd?.toLocaleString()}</p></div><button onClick={() => deleteItem('expenses', ex.id)} className="p-2 bg-red-50 text-red-400 rounded-full border border-red-50"><Icon name="trash" size={14}/></button></div></div>
+                                    <div key={ex.id} className="kuromi-card p-5 flex justify-between items-center border-l-[12px] border-l-[#9D76C1] shadow-sm"><div className="flex-1 mr-2"><div className="flex items-center gap-2 mb-1"><span className="text-[9px] font-black text-white bg-slate-800 px-2 py-0.5 rounded-full">{ex.date}</span><span className="text-[9px] text-slate-400 font-black uppercase font-bold">{ex.payer}</span></div><p className="text-2xl font-black text-slate-700">{ex.item}</p></div><div className="text-right flex items-center gap-3"><div><p className="text-3xl font-black text-slate-800">¥{ex.amount?.toLocaleString()}</p><p className="text-[10px] font-black text-pink-400">NT${ex.amountTwd?.toLocaleString()}</p></div><button onClick={() => db.collection(`artifacts/${appId}/public/data/expenses`).doc(ex.id).delete()} className="p-2 bg-red-50 text-red-400 rounded-full border border-red-50"><Icon name="trash" size={14}/></button></div></div>
                                 ))}
                             </div>
                         )}
 
-                        {/* 3. 工具與願望清單區域 */}
+                        {/* 🛠️ 修改：工具區域（已移除願望清單） */}
                         {activeTab === 'tools' && (
                             <div className="space-y-10 animate-in fade-in">
-                                <section className="bg-white rounded-[40px] border-[6px] border-[#FF91C1] p-8 shadow-xl">
-                                    <h3 className="text-2xl font-black text-slate-800 mb-6 flex items-center gap-3"><Icon name="shopping" className="text-[#FF91C1]" size={28} /> 雲端願望清單 💜</h3>
-                                    <div className="flex gap-3 mb-6">
-                                        <input value={newWish} onChange={(e)=>setNewWish(e.target.value)} placeholder="想買的東西、想吃的店..." className="flex-1 bg-purple-50 border-none rounded-2xl px-5 py-4 font-bold text-sm focus:ring-2 focus:ring-purple-200 outline-none" />
-                                        <button onClick={addWish} className="bg-[#FF91C1] text-white p-4 rounded-2xl active:scale-90"><Icon name="plus" /></button>
-                                    </div>
-                                    <div className="space-y-3">
-                                        {wishlistData.map(wish => (
-                                            <div key={wish.id} onClick={() => toggleWish(wish.id, wish.done)} className={`flex items-center justify-between p-4 rounded-2xl border-2 transition-all ${wish.done ? 'bg-slate-50 border-transparent opacity-50' : 'bg-white border-purple-100 shadow-sm'}`}>
-                                                <div className="flex items-center gap-4">
-                                                    <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center ${wish.done ? 'bg-purple-400 border-transparent' : 'border-purple-200'}`}>{wish.done && <Icon name="check" className="text-white" size={14} />}</div>
-                                                    <span className={`text-lg font-black ${wish.done ? 'line-through text-slate-400' : 'text-slate-700'}`}>{wish.text}</span>
-                                                </div>
-                                                <button onClick={(e)=>{e.stopPropagation(); deleteItem('wishlist', wish.id);}} className="text-slate-300 p-2"><Icon name="trash" size={16} /></button>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </section>
-
                                 <section className="bg-white rounded-[40px] border-4 border-[#9D76C1] p-8 shadow-xl text-center">
                                     <Icon name="hotel" size={40} className="text-purple-200 mx-auto mb-2 animate-bounce" />
                                     <h3 className="text-2xl font-black mb-1 text-[#2D2727]">博多西鐵 CROOM</h3>
@@ -465,7 +434,7 @@
                         )}
                     </div>
 
-                    {/* 編輯彈窗 */}
+                    {/* 編輯行程彈窗 */}
                     {isEditingPlan && (
                         <div className="fixed inset-0 z-[110] modal-mask flex items-center justify-center p-6"><div className="bg-white w-full rounded-[40px] p-10 shadow-2xl space-y-8 border-8 border-purple-50 animate-in zoom-in"><h3 className="text-3xl font-black text-slate-800 underline decoration-pink-300 decoration-4 underline-offset-4 text-center">{editingPlan ? '修改計畫 ✏️' : '新增計畫 ✏️'}</h3><div className="space-y-6 text-left"><div><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">預計時間</label><input value={editPlanBuffer.time} onChange={(e) => setEditPlanBuffer({...editPlanBuffer, time: e.target.value})} placeholder="14:30" className="w-full border-2 border-purple-50 p-4 text-3xl font-black focus:border-purple-400 outline-none bg-slate-50 rounded-2xl mt-1" /></div><div><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">計畫內容</label><input value={editPlanBuffer.title} onChange={(e) => setEditPlanBuffer({...editPlanBuffer, title: e.target.value})} placeholder="要去哪裡呢？" className="w-full border-2 border-purple-50 p-4 text-2xl font-black focus:border-purple-400 outline-none bg-slate-50 rounded-2xl mt-1" /></div></div><div className="flex gap-4 pt-2"><button onClick={savePlan} disabled={isSaving} className="flex-1 kuromi-gradient text-white py-5 rounded-full font-black text-2xl shadow-lg active:scale-95 disabled:opacity-50">{isSaving ? <Icon name="refresh" className="animate-spin-custom" size={24} /> : "儲存 💜"}</button><button onClick={() => { setIsEditingPlan(false); setEditingPlan(null); }} className="px-8 bg-slate-100 text-slate-400 rounded-full font-black text-sm text-center transition-all">取消</button></div></div></div>
                     )}
