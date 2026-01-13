@@ -82,6 +82,13 @@
 
         .nav-btn { font-size: 1.25rem; }
         .hide-scrollbar::-webkit-scrollbar { display: none; }
+
+        @keyframes floating {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-8px); }
+            100% { transform: translateY(0px); }
+        }
+        .float-anim { animation: floating 3s ease-in-out infinite; }
     </style>
 </head>
 <body class="bg-pattern">
@@ -126,7 +133,10 @@
                 'map-pinned': "M12 22s-8-4.5-8-11.8A8 8 0 0 1 12 2a8 8 0 0 1 8 8.2c0 7.3-8 11.8-8 11.8z M12 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6z",
                 'utensils': "M3 2v7c0 1.1.9 2 2 2h4c1.1 0 2-.9 2-2V2M7 2v20M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7",
                 'plane': "M22 16.21v-1.89L14.84 9.9 14.84 4a1.5 1.5 0 0 0-3 0v5.9L4.67 14.32v1.89l7.17-2.73v5.13l-1.71 1.14v1.33l3.37-1.01 3.37 1.01v-1.33l-1.71-1.14v-5.13L22 16.21z",
-                'languages': "M5 8l6 6M4 14l6-6M2 5h12M7 2h1M22 22l-5-10-5 10M14 18h6"
+                'languages': "M5 8l6 6M4 14l6-6M2 5h12M7 2h1M22 22l-5-10-5 10M14 18h6",
+                'sun': "M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10z M12 1v2 M12 21v2 M4.22 4.22l1.42 1.42 M18.36 18.36l1.42 1.42 M1 12h2 M21 12h2 M4.22 19.78l1.42-1.42 M18.36 5.64l1.42-1.42",
+                'cloud': "M17.5 19a5.5 5.5 0 0 0 0-11 1.5 1.5 0 0 0-1.5 1.5A7 7 0 1 0 5 15.5 5.5 5.5 0 0 0 10.5 21h7",
+                'cloud-rain': "M16 13v8 M8 13v8 M12 15v8 M20 16.58A5 5 0 0 0 18 7h-1.26A8 8 0 1 0 4 15.25"
             };
             return (
                 <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={`${className} pointer-events-none transition-all`}>
@@ -147,20 +157,21 @@
             const [fxTwd, setFxTwd] = useState('');
             const exchangeRate = 0.211;
 
+            // 🛠️ 天氣狀態
+            const [weather, setWeather] = useState({ temp: '--', code: 0, loading: true });
+
             const [expandedCats, setExpandedCats] = useState({
                 '一、證件與金錢': true, '二、Ruby 寶寶專區': true, '三、衣物配件': true,
                 '四、3C 數位產品': true, '五、藥品與保健': true, '六、盥洗與清潔': true,
                 '生存日語小手冊': false
             });
 
-            // 🛠️ 擴充地圖點
             const mapSpotList = [
                 { category: '熱門景點 ⛩️', items: ['博多運河城', '櫛田神社', '太宰府天滿宮', '福岡城跡/大濠公園', '福岡塔', 'LaLaport 福岡 (鋼彈)', '海之中道海濱公園'] },
                 { category: '必逛商場/藥妝 🛍️', items: ['天神地下街', '唐吉訶德 中洲店', '大國藥妝', '永旺夢樂城AEON', '博多車站阪急'] },
                 { category: '家族美食 🥩', items: ['燒肉 大東園', '一蘭拉麵 總店', '博多華味鳥 (水炊鍋)', '元祖博多明太子飯', '博多牛雜鍋 おおやま', 'bills 福岡 (鬆餅)'] }
             ];
 
-            // 🛠️ 常用日語
             const survivalPhrases = [
                 { jp: 'ありがとう', ro: 'Arigatou', tw: '謝謝' },
                 { jp: 'すみません', ro: 'Sumimasen', tw: '不好意思 / 請問' },
@@ -204,6 +215,36 @@
                 const diff = target.getTime() - now.getTime();
                 return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
             }, []);
+
+            // 🕒 獲取福岡天氣
+            useEffect(() => {
+                const fetchWeather = async () => {
+                    try {
+                        const res = await fetch('https://api.open-meteo.com/v1/forecast?latitude=33.5902&longitude=130.4017&current_weather=true');
+                        const data = await res.json();
+                        setWeather({
+                            temp: Math.round(data.current_weather.temperature),
+                            code: data.current_weather.weathercode,
+                            loading: false
+                        });
+                    } catch (e) {
+                        console.error("天氣載入失敗", e);
+                        setWeather(prev => ({ ...prev, loading: false }));
+                    }
+                };
+                fetchWeather();
+                const timer = setInterval(fetchWeather, 600000); // 10分鐘更新一次
+                return () => clearInterval(timer);
+            }, []);
+
+            const weatherIcon = useMemo(() => {
+                if (weather.loading) return 'refresh';
+                const code = weather.code;
+                if (code <= 3) return 'sun'; // 晴朗到微雲
+                if (code <= 67) return 'cloud'; // 多雲到霧
+                if (code >= 71) return 'cloud-rain'; // 雨或雪
+                return 'sun';
+            }, [weather]);
 
             useEffect(() => {
                 const unsubscribe = auth.onAuthStateChanged(u => {
@@ -291,17 +332,28 @@
                     </div>
 
                     {/* Header */}
-                    <header className="kuromi-gradient text-white p-6 pt-10 rounded-b-[40px] shadow-lg text-center relative overflow-hidden">
-                        <h1 className="text-5xl font-bold tracking-tighter" style={{ textShadow: '2px 2px 0px rgba(0,0,0,0.2)' }}>福岡 2026</h1>
-                        <div className="flex flex-col items-center mt-2">
-                            <div className="flex items-center gap-2 mb-1">
-                                <span className="bg-black/30 px-3 py-1 rounded-full text-[10px] uppercase tracking-widest font-bold">SHEN FAMILY TRIP</span>
-                                <Icon name="heart" size={14} className="fill-pink-400 text-pink-400 animate-pulse" />
+                    <header className="kuromi-gradient text-white p-6 pt-10 rounded-b-[40px] shadow-lg relative overflow-hidden">
+                        <div className="flex justify-between items-start relative z-10">
+                            <div>
+                                <h1 className="text-5xl font-bold tracking-tighter" style={{ textShadow: '2px 2px 0px rgba(0,0,0,0.2)' }}>福岡 2026</h1>
+                                <div className="flex items-center gap-2 mt-2">
+                                    <span className="bg-black/30 px-3 py-1 rounded-full text-[10px] uppercase tracking-widest font-bold">SHEN FAMILY TRIP</span>
+                                    <Icon name="heart" size={14} className="fill-pink-400 text-pink-400 animate-pulse" />
+                                </div>
                             </div>
-                            <div className="bg-white/20 px-4 py-1.5 rounded-2xl backdrop-blur-sm border border-white/20 mt-1 flex items-center gap-2">
-                                <Icon name="sparkles" size={12} className="text-yellow-200" />
-                                <span className="text-sm font-black tracking-widest">距離出發還有 <span className="text-pink-200 text-xl">{countdownDays}</span> 天</span>
+                            
+                            {/* 🛠️ 天氣與倒數小卡 */}
+                            <div className="bg-black/30 p-3 rounded-[25px] backdrop-blur-md border border-white/10 text-center min-w-[90px] float-anim">
+                                <Icon name={weatherIcon} size={32} className={`${weather.loading ? 'animate-spin' : ''} text-pink-200 mx-auto mb-1`} />
+                                <p className="text-2xl font-black">{weather.temp}°C</p>
+                                <p className="text-[9px] opacity-70 font-bold uppercase tracking-widest">Fukuoka</p>
                             </div>
+                        </div>
+
+                        {/* 🕒 倒數計時區 */}
+                        <div className="bg-white/20 px-4 py-2 rounded-2xl backdrop-blur-sm border border-white/10 mt-6 flex items-center justify-center gap-2">
+                            <Icon name="sparkles" size={14} className="text-yellow-200" />
+                            <span className="text-sm font-black tracking-widest">距離出發還有 <span className="text-pink-200 text-xl">{countdownDays}</span> 天</span>
                         </div>
                     </header>
 
@@ -405,7 +457,6 @@
                         {/* 3. 工具區域 */}
                         {activeTab === 'tools' && (
                             <div className="space-y-10 animate-in fade-in pb-10">
-                                {/* 🛠️ 新增：航班資訊 */}
                                 <section className="bg-white rounded-[40px] border-4 border-slate-800 p-8 shadow-xl relative overflow-hidden">
                                     <div className="absolute right-0 top-0 kuromi-gradient p-4 rounded-bl-3xl"><Icon name="plane" className="text-white" size={24} /></div>
                                     <h3 className="text-2xl font-black mb-6 text-slate-800 italic underline decoration-pink-300">航班詳情 ✈️</h3>
@@ -428,7 +479,6 @@
                                     <div className="flex gap-4"><button onClick={() => window.open('https://www.google.com/maps/search/?api=1&query=博多祇園櫛田神社前西鐵克魯姆酒店','_blank')} className="flex-1 kuromi-gradient text-white py-4 rounded-2xl font-black text-sm shadow-md">地圖定位</button><a href="tel:092-235-0311" className="flex-1 border-2 border-[#2D2727] text-center py-4 rounded-2xl font-black text-sm">撥打電話</a></div>
                                 </section>
 
-                                {/* 🛠️ 新增：生存日語摺疊清單 */}
                                 <section>
                                     <div onClick={() => toggleCategory('生存日語小手冊')} className="flex items-center justify-between bg-white p-6 rounded-[30px] border-2 border-pink-100 shadow-sm active:bg-pink-50 cursor-pointer">
                                         <div className="flex items-center gap-3">
