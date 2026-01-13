@@ -72,20 +72,15 @@
 
         .modal-mask {
             background-color: rgba(0, 0, 0, 0.6);
-            backdrop-filter: blur(8px);
+            backdrop-filter: blur(4px);
         }
         
         .tab-active { color: #9D76C1; border-bottom: 4px solid #9D76C1; }
-
-        /* 防白屏備用樣式 */
-        #root:empty::before {
-            content: "少女心載入中... 💜";
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            font-size: 1.2rem;
-            color: #9D76C1;
+        
+        input::-webkit-outer-spin-button,
+        input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
         }
     </style>
 </head>
@@ -93,7 +88,7 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect, useMemo, useCallback } = React;
+        const { useState, useEffect, useMemo } = React;
 
         // Firebase 配置
         const firebaseConfig = {
@@ -113,7 +108,6 @@
         const db = firebase.firestore();
         const appId = "fukuoka-2026";
 
-        // SVG 圖標組件：強化 pointer-events-none 確保不干擾點擊
         const Icon = ({ name, className = "", size = 24 }) => {
             const icons = {
                 'heart': "M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.505 4.04 3 5.5L12 21l7-7Z",
@@ -130,7 +124,8 @@
                 'chevron-down': "M6 9l6 6 6-6",
                 'chevron-right': "M9 18l6-6-6-6",
                 'navigation': "M3 11l19-9-9 19-2-8-8-2z",
-                'alert': "M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z M12 9v4 M12 17h.01"
+                'alert': "M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z M12 9v4 M12 17h.01",
+                'arrow-down-up': "M7 21l-4-4h3V3h2v14h3l-4 4z M17 3l4 4h-3v14h-2V7h-3l4-4z"
             };
             return (
                 <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={`${className} pointer-events-none transition-all`}>
@@ -147,21 +142,18 @@
             const [activeTab, setActiveTab] = useState('itinerary'); 
             const [itineraryView, setItineraryView] = useState('list');
             const [selectedDayIdx, setSelectedDayIdx] = useState(0);
-            const [fxInput, setFxInput] = useState('');
+            
+            const [fxJpy, setFxJpy] = useState('');
+            const [fxTwd, setFxTwd] = useState('');
             const exchangeRate = 0.211;
 
             const [expandedCats, setExpandedCats] = useState({
-                '一、證件與金錢': true,
-                '二、Ruby 寶寶專區': true,
-                '三、衣物配件': true,
-                '四、3C 數位產品': true,
-                '五、藥品與保健': true,
-                '六、盥洗與清潔': true
+                '一、證件與金錢': true, '二、Ruby 寶寶專區': true, '三、衣物配件': true,
+                '四、3C 數位產品': true, '五、藥品與保健': true, '六、盥洗與清潔': true
             });
 
             const [newExpense, setNewExpense] = useState({ 
-                date: new Date().toISOString().split('T')[0], 
-                payer: 'KCY', item: '', amount: '' 
+                date: new Date().toISOString().split('T')[0], payer: 'KCY', item: '', amount: '' 
             });
 
             const [isEditingPlan, setIsEditingPlan] = useState(false);
@@ -199,26 +191,21 @@
             useEffect(() => {
                 if (!user) return;
                 const pathBase = `artifacts/${appId}/public/data`;
-                
                 const unsubExp = db.collection(`${pathBase}/expenses`).onSnapshot(snap => {
                     const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
                     setExpenses(docs.sort((a, b) => (b.date || "").localeCompare(a.date || "")));
-                }, err => console.error(err));
-
+                });
                 const unsubItinerary = db.collection(`${pathBase}/itinerary`).onSnapshot(snap => {
                     const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
                     setItineraryData(docs);
-                }, err => console.error(err));
-
+                });
                 return () => { unsubExp(); unsubItinerary(); };
             }, [user]);
 
-            // --- 強化後的數值化排序邏輯 ---
             const currentDayPlans = useMemo(() => {
                 const day = dates[selectedDayIdx];
                 if (!day) return [];
                 const target = day.date;
-                
                 const timeToMinutes = (t) => {
                     if (!t) return 9999;
                     const digits = t.match(/\d+/g);
@@ -227,11 +214,24 @@
                     const m = digits.length > 1 ? parseInt(digits[1], 10) : 0;
                     return h * 60 + m;
                 };
-
                 return (itineraryData || [])
                     .filter(p => p && p.targetDate === target)
                     .sort((a, b) => timeToMinutes(a.time) - timeToMinutes(b.time));
             }, [itineraryData, selectedDayIdx]);
+
+            const handleJpyChange = (val) => {
+                setFxJpy(val);
+                if (val === '') { setFxTwd(''); return; }
+                const num = parseFloat(val);
+                setFxTwd(Math.round(num * exchangeRate).toString());
+            };
+
+            const handleTwdChange = (val) => {
+                setFxTwd(val);
+                if (val === '') { setFxJpy(''); return; }
+                const num = parseFloat(val);
+                setFxJpy(Math.round(num / exchangeRate).toString());
+            };
 
             const showToast = (msg) => {
                 setToast({ show: true, msg });
@@ -255,7 +255,6 @@
                 finally { setIsSaving(false); }
             };
 
-            // 編輯功能強化
             const openEditModal = (e, plan) => {
                 e.preventDefault();
                 e.stopPropagation(); 
@@ -299,15 +298,13 @@
 
             return (
                 <div className="max-w-md mx-auto min-h-screen relative pb-20">
-                    {/* Toast */}
                     <div className={`fixed top-6 left-1/2 -translate-x-1/2 z-[200] transition-all duration-500 ${toast.show ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-10 pointer-events-none'}`}>
                         <div className="bg-black/90 text-white px-6 py-3 rounded-full flex items-center gap-2 shadow-xl border border-purple-400 backdrop-blur-md text-sm text-center">
                             <Icon name="check-circle" size={18} className="text-pink-400" />
-                            <span className="font-bold tracking-widest">{toast.msg}</span>
+                            <span className="font-bold">{toast.msg}</span>
                         </div>
                     </div>
 
-                    {/* Header */}
                     <header className="kuromi-gradient text-white p-6 pt-10 rounded-b-[40px] shadow-lg text-center relative overflow-hidden">
                         <h1 className="text-5xl font-bold tracking-tighter" style={{ textShadow: '2px 2px 0px rgba(0,0,0,0.2)' }}>福岡 2026</h1>
                         <div className="flex items-center justify-center gap-2 mt-2">
@@ -316,7 +313,6 @@
                         </div>
                     </header>
 
-                    {/* Navbar */}
                     <nav className="flex bg-white/95 backdrop-blur-lg sticky top-0 z-50 px-4 border-b-4 border-purple-50 shadow-sm">
                         <button onClick={() => { setActiveTab('itinerary'); setItineraryView('list'); }} className={`flex-1 py-4 font-black text-lg transition-all ${activeTab === 'itinerary' ? 'tab-active' : 'text-slate-400'}`}>行程</button>
                         <button onClick={() => setActiveTab('expense')} className={`flex-1 py-4 font-black text-lg transition-all ${activeTab === 'expense' ? 'tab-active' : 'text-slate-400'}`}>記帳</button>
@@ -324,7 +320,6 @@
                     </nav>
 
                     <div className="px-5 py-6">
-                        {/* 行程區域 */}
                         {activeTab === 'itinerary' && (
                             itineraryView === 'list' ? (
                                 <div className="space-y-6 animate-in fade-in">
@@ -368,19 +363,8 @@
                                                 <div className="flex justify-between items-center mb-4">
                                                     <span className="text-xs font-black text-white bg-slate-800 px-3 py-1 rounded-full">{plan.time}</span>
                                                     <div className="flex gap-2">
-                                                        {/* 🛡️ 編輯按鈕觸發修復 */}
-                                                        <div 
-                                                            onClick={(e) => openEditModal(e, plan)} 
-                                                            className="w-10 h-10 flex items-center justify-center bg-purple-50 text-purple-400 rounded-full active:scale-75 border border-purple-100 touch-manipulation z-20 cursor-pointer"
-                                                        >
-                                                            <Icon name="pencil" size={20} />
-                                                        </div>
-                                                        <div 
-                                                            onClick={(e) => deletePlan(e, plan.id)} 
-                                                            className="w-10 h-10 flex items-center justify-center bg-red-50 text-red-400 rounded-full active:scale-75 border border-red-100 touch-manipulation z-20 cursor-pointer"
-                                                        >
-                                                            <Icon name="trash" size={20} />
-                                                        </div>
+                                                        <div onClick={(e) => openEditModal(e, plan)} className="w-10 h-10 flex items-center justify-center bg-purple-50 text-purple-400 rounded-full active:scale-75 border border-purple-100 touch-manipulation z-20 cursor-pointer"><Icon name="pencil" size={20} /></div>
+                                                        <div onClick={(e) => deletePlan(e, plan.id)} className="w-10 h-10 flex items-center justify-center bg-red-50 text-red-400 rounded-full active:scale-75 border border-red-100 touch-manipulation z-20 cursor-pointer"><Icon name="trash" size={20} /></div>
                                                     </div>
                                                 </div>
                                                 <h3 className="text-2xl font-black text-slate-700 leading-tight">{plan.title}</h3>
@@ -391,19 +375,27 @@
                             )
                         )}
 
-                        {/* 記帳區域 */}
                         {activeTab === 'expense' && (
                             <div className="space-y-6 animate-in fade-in">
-                                <div className="bg-[#2D2727] text-white p-8 rounded-[40px] shadow-xl relative overflow-hidden">
-                                    <p className="text-[10px] text-[#FF91C1] font-black uppercase tracking-[0.2em] mb-4">JPY ⮕ TWD 即時換算</p>
-                                    <div className="flex items-center justify-between">
-                                        <input type="number" value={fxInput} onChange={(e) => setFxInput(e.target.value)} placeholder="0" className="flex-1 bg-transparent text-5xl font-black focus:outline-none placeholder:text-white/10 w-full" />
-                                        <div className="text-right flex-shrink-0">
-                                            <p className="text-[10px] opacity-40 font-black mb-0.5">NT$</p>
-                                            <p className="text-5xl font-black text-[#FF91C1]">{Math.round((parseFloat(fxInput) || 0) * exchangeRate).toLocaleString()}</p>
+                                <div className="bg-[#2D2727] text-white p-8 rounded-[40px] shadow-xl relative overflow-hidden space-y-6">
+                                    <div className="flex justify-between items-center mb-2">
+                                        <p className="text-[10px] text-[#FF91C1] font-black uppercase tracking-[0.2em]">匯率換算 0.211</p>
+                                        <Icon name="arrow-down-up" size={16} className="text-[#FF91C1]" />
+                                    </div>
+                                    <div className="flex items-center justify-between border-b border-white/10 pb-4">
+                                        <div className="flex-1">
+                                            <p className="text-[10px] opacity-40 font-black mb-1 uppercase">Japanese Yen ¥</p>
+                                            <input type="number" value={fxJpy} onChange={(e) => handleJpyChange(e.target.value)} placeholder="0" className="bg-transparent text-5xl font-black focus:outline-none placeholder:text-white/5 w-full tracking-tighter" />
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center justify-between pt-2">
+                                        <div className="flex-1">
+                                            <p className="text-[10px] text-[#FF91C1] font-black mb-1 uppercase tracking-widest">Taiwan Dollar $</p>
+                                            <input type="number" value={fxTwd} onChange={(e) => handleTwdChange(e.target.value)} placeholder="0" className="bg-transparent text-5xl font-black text-[#FF91C1] focus:outline-none placeholder:text-pink-900/20 w-full tracking-tighter" />
                                         </div>
                                     </div>
                                 </div>
+
                                 <div className="bg-white rounded-[40px] p-8 space-y-6 shadow-xl border-4 border-purple-50">
                                     <h3 className="text-xl font-black underline decoration-pink-300 decoration-4">新增花費 💜</h3>
                                     <div className="space-y-4">
@@ -416,9 +408,7 @@
                                         <input placeholder="買了什麼？" value={newExpense.item} onChange={(e) => setNewExpense({...newExpense, item: e.target.value})} className="w-full border-b-2 border-purple-50 pb-2 text-sm font-black focus:border-purple-400 outline-none" />
                                         <input type="number" placeholder="金額 ¥" value={newExpense.amount} onChange={(e) => setNewExpense({...newExpense, amount: e.target.value})} className="w-full border-2 border-purple-50 p-4 text-xl font-black focus:border-purple-400 outline-none bg-slate-50 rounded-2xl" />
                                     </div>
-                                    <button onClick={addExpense} disabled={isSaving} className="w-full kuromi-gradient text-white py-4 rounded-full font-black text-2xl shadow-lg active:scale-95 flex items-center justify-center gap-2">
-                                        {isSaving ? <Icon name="refresh" className="animate-spin-custom" size={18} /> : "紀錄開銷 💜"}
-                                    </button>
+                                    <button onClick={addExpense} disabled={isSaving} className="w-full kuromi-gradient text-white py-4 rounded-full font-black text-2xl shadow-lg active:scale-95 flex items-center justify-center gap-2">{isSaving ? <Icon name="refresh" className="animate-spin-custom" size={18} /> : "紀錄開銷 💜"}</button>
                                 </div>
                                 {(expenses || []).map((ex, idx) => (
                                     <div key={ex.id || idx} className="kuromi-card p-5 flex justify-between items-center border-l-[12px] border-l-[#9D76C1] shadow-sm">
@@ -441,7 +431,6 @@
                             </div>
                         )}
 
-                        {/* 工具區域 (行李清單) */}
                         {activeTab === 'tools' && (
                             <div className="space-y-10 animate-in fade-in">
                                 <section className="text-center">
@@ -465,17 +454,10 @@
                                         const isExpanded = expandedCats[cat.category];
                                         return (
                                             <div key={idx} className="mb-6">
-                                                {/* 🛠️ 分類標題特大化並支援摺疊 */}
-                                                <div 
-                                                    onClick={() => toggleCategory(cat.category)}
-                                                    className="flex items-center justify-between bg-white p-5 rounded-[30px] border-2 border-purple-100 shadow-sm active:bg-purple-50 transition-all cursor-pointer"
-                                                >
-                                                    <p className="text-2xl font-black text-[#8A63B3] border-l-8 border-[#9D76C1] px-4 uppercase tracking-wide">
-                                                        {cat.category}
-                                                    </p>
+                                                <div onClick={() => toggleCategory(cat.category)} className="flex items-center justify-between bg-white p-5 rounded-[30px] border-2 border-purple-100 shadow-sm active:bg-purple-50 transition-all cursor-pointer">
+                                                    <p className="text-2xl font-black text-[#8A63B3] border-l-8 border-[#9D76C1] px-4 uppercase tracking-wide">{cat.category}</p>
                                                     <Icon name={isExpanded ? "chevron-down" : "chevron-right"} size={28} className="text-purple-300" />
                                                 </div>
-                                                
                                                 {isExpanded && (
                                                     <div className="space-y-3 px-2 mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
                                                         {cat.items.map(item => {
@@ -494,15 +476,25 @@
                                             </div>
                                         );
                                     })}
-                                    {/* 飛安提醒 */}
-                                    <div className="kuromi-card p-6 bg-[#2D2727] text-white border-none shadow-xl mt-6 mx-2">
-                                        <h4 className="font-bold text-[#FF91C1] mb-4 flex items-center gap-2 text-sm uppercase">
-                                            <Icon name="alert" size={16} className="text-[#FF91C1]" /> 托運與手提提醒
+                                    
+                                    {/* 🛠️ 修復點：加大提醒文字區塊 */}
+                                    <div className="kuromi-card p-8 bg-[#2D2727] text-white border-none shadow-xl mt-8 mx-2">
+                                        <h4 className="font-black text-[#FF91C1] mb-6 flex items-center justify-center gap-3 text-2xl uppercase tracking-widest">
+                                            <Icon name="alert" size={28} className="text-[#FF91C1]" /> 托運與手提提醒
                                         </h4>
-                                        <ul className="text-[11px] space-y-3 opacity-90 font-bold tracking-wider">
-                                            <li>● 液體：手提 100ml 內，需裝入透明夾鏈袋。</li>
-                                            <li>● 打火機：限 1 個且必須隨身手提，嚴禁托運。</li>
-                                            <li>● 電池：行動電源嚴禁托運，務必放手提行李。</li>
+                                        <ul className="text-lg space-y-5 opacity-95 font-black tracking-wide leading-relaxed">
+                                            <li className="flex items-start gap-3">
+                                                <span className="text-[#9D76C1] flex-shrink-0 mt-1">●</span>
+                                                <span>液體：手提 100ml 內，需裝入透明夾鏈袋。</span>
+                                            </li>
+                                            <li className="flex items-start gap-3">
+                                                <span className="text-[#9D76C1] flex-shrink-0 mt-1">●</span>
+                                                <span>打火機：限 1 個且必須隨身手提，嚴禁托運。</span>
+                                            </li>
+                                            <li className="flex items-start gap-3">
+                                                <span className="text-[#9D76C1] flex-shrink-0 mt-1">●</span>
+                                                <span>電池：行動電源嚴禁托運，務必放手提行李。</span>
+                                            </li>
                                         </ul>
                                     </div>
                                 </section>
@@ -510,13 +502,10 @@
                         )}
                     </div>
 
-                    {/* 編輯彈窗 */}
                     {isEditingPlan && (
                         <div className="fixed inset-0 z-[110] modal-mask flex items-center justify-center p-6">
                             <div className="bg-white w-full rounded-[40px] p-10 shadow-2xl space-y-8 border-8 border-purple-50 animate-in zoom-in">
-                                <h3 className="text-3xl font-black text-slate-800 underline decoration-pink-300 decoration-4 underline-offset-4 text-center">
-                                    {editingPlan ? '修改計畫 ✏️' : '新增計畫 ✏️'}
-                                </h3>
+                                <h3 className="text-3xl font-black text-slate-800 underline decoration-pink-300 decoration-4 underline-offset-4 text-center">{editingPlan ? '修改計畫 ✏️' : '新增計畫 ✏️'}</h3>
                                 <div className="space-y-6 text-left">
                                     <div>
                                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">預計時間</label>
@@ -524,13 +513,11 @@
                                     </div>
                                     <div>
                                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">計畫內容</label>
-                                        <input value={editPlanBuffer.title} onChange={(e) => setEditPlanBuffer({...editPlanBuffer, title: e.target.value})} placeholder="要去哪裡呢？" className="w-full border-2 border-purple-50 p-4 text-3xl font-black focus:border-purple-400 outline-none bg-slate-50 rounded-2xl mt-1" />
+                                        <input value={editPlanBuffer.title} onChange={(e) => setEditPlanBuffer({...editPlanBuffer, title: e.target.value})} placeholder="要去哪裡呢？" className="w-full border-2 border-purple-50 p-4 text-2xl font-black focus:border-purple-400 outline-none bg-slate-50 rounded-2xl mt-1" />
                                     </div>
                                 </div>
                                 <div className="flex gap-4 pt-2">
-                                    <button onClick={savePlan} disabled={isSaving} className="flex-1 kuromi-gradient text-white py-5 rounded-full font-black text-2xl shadow-lg active:scale-95 disabled:opacity-50">
-                                        {isSaving ? <Icon name="refresh" className="animate-spin-custom mx-auto" size={24} /> : "儲存 💜"}
-                                    </button>
+                                    <button onClick={savePlan} disabled={isSaving} className="flex-1 kuromi-gradient text-white py-5 rounded-full font-black text-2xl shadow-lg active:scale-95 disabled:opacity-50">{isSaving ? <Icon name="refresh" className="animate-spin-custom mx-auto" size={24} /> : "儲存 💜"}</button>
                                     <button onClick={() => { setIsEditingPlan(false); setEditingPlan(null); }} className="px-8 bg-slate-100 text-slate-400 rounded-full font-black text-sm text-center transition-all">取消</button>
                                 </div>
                             </div>
@@ -541,7 +528,6 @@
             );
         };
 
-        // 🛡️ 確保 DOM 與 React 完全同步掛載
         const container = document.getElementById('root');
         if (container) {
             const root = ReactDOM.createRoot(container);
