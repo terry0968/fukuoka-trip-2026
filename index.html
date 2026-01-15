@@ -74,7 +74,7 @@
 
         .modal-mask {
             background-color: rgba(0, 0, 0, 0.6);
-            backdrop-filter: blur(4px);
+            backdrop-filter: blur(8px);
         }
         
         .tab-active { color: #9D76C1; border-bottom: 4px solid #9D76C1; }
@@ -114,7 +114,7 @@
         const appId = "fukuoka-2026";
         const apiKey = ""; // API key provided by environment
 
-        // 🛠️ 更新後的固定行程重點 (根據最新需求)
+        // 🛠️ 定義固定行程重點
         const DEFAULT_PLANS = {
             '5/30': [
                 { time: '14:40', title: '抵達福岡 (CI128) ✈️', type: 'fixed' },
@@ -175,7 +175,8 @@
                 'cloud': "M17.5 19a5.5 5.5 0 0 0 0-11 1.5 1.5 0 0 0-1.5 1.5A7 7 0 1 0 5 15.5 5.5 5.5 0 0 0 10.5 21h7",
                 'cloud-rain': "M16 13v8 M8 13v8 M12 15v8 M20 16.58A5 5 0 0 0 18 7h-1.26A8 8 0 1 0 4 15.25",
                 'volume': "M11 5L6 9H2v6h4l5 4V5z M19.07 4.93a10 10 0 0 1 0 14.14 M15.54 8.46a5 5 0 0 1 0 7.07",
-                'shopping': "M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4H6zm-2 4h16M16 10a4 4 0 0 1-8 0"
+                'shopping': "M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4H6zm-2 4h16M16 10a4 4 0 0 1-8 0",
+                'x': "M18 6L6 18M6 6l12 12"
             };
             return (
                 <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={`${className} pointer-events-none transition-all`}>
@@ -196,7 +197,10 @@
             const [fxTwd, setFxTwd] = useState('');
             const exchangeRate = 0.211;
 
+            // 🛠️ 天氣與預報狀態
             const [weather, setWeather] = useState({ temp: '--', code: 0, loading: true });
+            const [forecast, setForecast] = useState([]);
+            const [isWeatherModalOpen, setIsWeatherModalOpen] = useState(false);
             const [speakingId, setSpeakingId] = useState(null);
 
             const [expandedCats, setExpandedCats] = useState({
@@ -255,16 +259,28 @@
                 return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
             }, []);
 
+            // 🕒 獲取福岡天氣 (含 7 天預報數據)
             useEffect(() => {
                 const fetchWeather = async () => {
                     try {
-                        const res = await fetch('https://api.open-meteo.com/v1/forecast?latitude=33.5902&longitude=130.4017&current_weather=true');
+                        const res = await fetch('https://api.open-meteo.com/v1/forecast?latitude=33.5902&longitude=130.4017&current_weather=true&daily=weathercode,temperature_2m_max,temperature_2m_min&timezone=Asia%2FTokyo');
                         const data = await res.json();
+                        
                         setWeather({
                             temp: Math.round(data.current_weather.temperature),
                             code: data.current_weather.weathercode,
                             loading: false
                         });
+
+                        // 整理 7 天預報清單
+                        const forecastList = data.daily.time.map((t, idx) => ({
+                            date: t.split('-').slice(1).join('/'), // 轉為 MM/DD
+                            max: Math.round(data.daily.temperature_2m_max[idx]),
+                            min: Math.round(data.daily.temperature_2m_min[idx]),
+                            code: data.daily.weathercode[idx]
+                        }));
+                        setForecast(forecastList);
+
                     } catch (e) {
                         setWeather(prev => ({ ...prev, loading: false }));
                     }
@@ -274,14 +290,12 @@
                 return () => clearInterval(timer);
             }, []);
 
-            const weatherIcon = useMemo(() => {
-                if (weather.loading) return 'refresh';
-                const code = weather.code;
+            const getWeatherIcon = (code) => {
                 if (code <= 3) return 'sun'; 
                 if (code <= 67) return 'cloud'; 
                 if (code >= 71) return 'cloud-rain'; 
                 return 'sun';
-            }, [weather]);
+            };
 
             useEffect(() => {
                 const unsubscribe = auth.onAuthStateChanged(u => {
@@ -420,6 +434,7 @@
 
             return (
                 <div className="max-w-md mx-auto min-h-screen relative pb-20">
+                    {/* Toast */}
                     <div className={`fixed top-6 left-1/2 -translate-x-1/2 z-[200] transition-all duration-500 ${toast.show ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-10 pointer-events-none'}`}>
                         <div className="bg-black/90 text-white px-6 py-3 rounded-full flex items-center gap-2 shadow-xl border border-purple-400 backdrop-blur-md text-sm text-center">
                             <Icon name="check-circle" size={18} className="text-pink-400" />
@@ -436,8 +451,13 @@
                                     <Icon name="heart" size={14} className="fill-pink-400 text-pink-400 animate-pulse" />
                                 </div>
                             </div>
-                            <div className="bg-black/30 p-3 rounded-[25px] backdrop-blur-md border border-white/10 text-center min-w-[90px] float-anim">
-                                <Icon name={weatherIcon} size={32} className={`${weather.loading ? 'animate-spin' : ''} text-pink-200 mx-auto mb-1`} />
+                            
+                            {/* 🛠️ 點擊天氣小卡開啟預報 */}
+                            <div 
+                                onClick={() => setIsWeatherModalOpen(true)}
+                                className="bg-black/30 p-3 rounded-[25px] backdrop-blur-md border border-white/10 text-center min-w-[90px] float-anim cursor-pointer active:scale-90 transition-all"
+                            >
+                                <Icon name={getWeatherIcon(weather.code)} size={32} className={`${weather.loading ? 'animate-spin' : ''} text-pink-200 mx-auto mb-1`} />
                                 <p className="text-2xl font-black">{weather.temp}°C</p>
                                 <p className="text-[9px] opacity-70 font-bold uppercase tracking-widest">Fukuoka</p>
                             </div>
@@ -456,6 +476,7 @@
                     </nav>
 
                     <div className="px-5 py-6">
+                        {/* 1. 行程區域 */}
                         {activeTab === 'itinerary' && (
                             itineraryView === 'list' ? (
                                 <div className="space-y-6 animate-in fade-in">
@@ -486,20 +507,9 @@
                                             let cardBorderColor = 'border-l-[#9D76C1]';
                                             let timeBgColor = 'bg-slate-800';
                                             let typeLabel = '';
-
-                                            if (plan.isStatic || plan.type === 'fixed') {
-                                                cardBorderColor = 'border-l-pink-400';
-                                                timeBgColor = 'bg-pink-400';
-                                                typeLabel = '核心重點';
-                                            } else if (plan.type === 'restaurant') {
-                                                cardBorderColor = 'border-l-orange-400';
-                                                timeBgColor = 'bg-orange-400';
-                                                typeLabel = '美味餐廳';
-                                            } else {
-                                                cardBorderColor = 'border-l-indigo-400';
-                                                timeBgColor = 'bg-indigo-400';
-                                                typeLabel = '冒險景點';
-                                            }
+                                            if (plan.isStatic || plan.type === 'fixed') { cardBorderColor = 'border-l-pink-400'; timeBgColor = 'bg-pink-400'; typeLabel = '核心重點'; }
+                                            else if (plan.type === 'restaurant') { cardBorderColor = 'border-l-orange-400'; timeBgColor = 'bg-orange-400'; typeLabel = '美味餐廳'; }
+                                            else { cardBorderColor = 'border-l-indigo-400'; timeBgColor = 'bg-indigo-400'; typeLabel = '冒險景點'; }
 
                                             return (
                                                 <div key={plan.id} className={`kuromi-card p-5 border-l-[15px] shadow-md ${cardBorderColor}`}>
@@ -641,6 +651,37 @@
                         )}
                     </div>
 
+                    {/* 🛠️ 天氣預報彈窗 */}
+                    {isWeatherModalOpen && (
+                        <div className="fixed inset-0 z-[120] modal-mask flex items-center justify-center p-6">
+                            <div className="bg-white w-full rounded-[45px] p-8 shadow-2xl space-y-6 border-[8px] border-purple-100 animate-in zoom-in duration-300 max-h-[80vh] overflow-y-auto hide-scrollbar">
+                                <div className="flex justify-between items-center mb-4">
+                                    <h3 className="text-3xl font-black text-slate-800 italic underline decoration-pink-300 decoration-4">福岡週報 🌦️</h3>
+                                    <button onClick={() => setIsWeatherModalOpen(false)} className="p-3 bg-slate-100 rounded-full text-slate-400 active:scale-75 transition-all"><Icon name="x" size={20} /></button>
+                                </div>
+                                <div className="space-y-4">
+                                    {forecast.length > 0 ? forecast.map((f, i) => (
+                                        <div key={i} className="flex items-center justify-between bg-purple-50/50 p-5 rounded-3xl border-2 border-white shadow-sm">
+                                            <div className="flex items-center gap-4">
+                                                <span className="text-lg font-black text-slate-500 w-12">{f.date}</span>
+                                                <Icon name={getWeatherIcon(f.code)} size={28} className="text-[#9D76C1]" />
+                                            </div>
+                                            <div className="flex items-center gap-3">
+                                                <span className="text-xl font-black text-slate-700">{f.max}°</span>
+                                                <div className="w-px h-6 bg-slate-200" />
+                                                <span className="text-xl font-black text-slate-400">{f.min}°</span>
+                                            </div>
+                                        </div>
+                                    )) : <p className="text-center py-10 opacity-30">載入預報中...</p>}
+                                </div>
+                                <div className="pt-4">
+                                    <button onClick={() => setIsWeatherModalOpen(false)} className="w-full kuromi-gradient text-white py-5 rounded-3xl font-black text-xl shadow-lg active:scale-95 transition-all">關閉 💜</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* 編輯彈窗 */}
                     {isEditingPlan && (
                         <div className="fixed inset-0 z-[110] modal-mask flex items-center justify-center p-6">
                             <div className="bg-white w-full rounded-[40px] p-10 shadow-2xl space-y-8 border-8 border-purple-50 animate-in zoom-in">
