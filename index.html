@@ -39,7 +39,7 @@
         .kuromi-font { font-family: 'ZCOOL KuaiLe', cursive; }
         .kuromi-gradient { background: linear-gradient(135deg, #9D76C1 0%, #765898 100%); }
         
-        /* 去趣時間軸導引線 */
+        /* 時間軸導引線 */
         .timeline-line {
             position: absolute;
             left: 28px;
@@ -56,14 +56,13 @@
             border-radius: 24px; 
             box-shadow: 0 8px 20px rgba(0,0,0,0.04);
             border: 1px solid rgba(157, 118, 193, 0.1);
+            transition: transform 0.2s ease;
         }
+        .chic-card:active { transform: scale(0.98); }
 
         @keyframes spin-slow { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         .animate-spin-custom { animation: spin-slow 1.5s linear infinite; }
         
-        button { transition: all 0.2s ease; }
-        button:active { transform: scale(0.95); }
-
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         
         .modal-mask {
@@ -108,7 +107,6 @@
         const appId = "fukuoka-2026";
         const apiKey = ""; // API key provided by environment
 
-        // 🛠️ 資料定義：固定行程
         const DEFAULT_PLANS = {
             '5/30': [
                 { time: '14:40', title: '抵達福岡 (CI128) ✈️', type: 'fixed' },
@@ -220,14 +218,6 @@
                 { id: 'ph6', jp: 'お会計をお願いします', ro: 'Okaikei o onegaishimasu', tw: '請幫我結帳' }
             ];
 
-            const members = ['KCY', 'Ruby', 'YSL', 'Tsai'];
-            const dates = [
-                { date: '5/30', dayName: 'SAT' }, { date: '5/31', dayName: 'SUN' },
-                { date: '6/1', dayName: 'MON' }, { date: '6/2', dayName: 'TUE' },
-                { date: '6/3', dayName: 'WED' }, { date: '6/4', dayName: 'THU' },
-                { date: '6/5', dayName: 'FRI' }, { date: '6/6', dayName: 'SAT' }
-            ];
-
             const packingListTemplate = [
                 { category: '一、證件與金錢', items: ['護照 (正本+影本)', 'Visit Japan Web QR Code', '日幣現金', '信用卡/悠遊卡', '旅遊保險證明書'] },
                 { category: '二、Ruby 寶寶專區', items: ['足量尿布 & 濕紙巾', '奶粉分裝包 & 奶瓶', '副食品 & 寶寶零食', '寶寶餐具 & 圍兜', '手推車 & 防雨罩', '小毯子 & 換洗衣物'] },
@@ -235,6 +225,14 @@
                 { category: '四、3C 數位產品', items: ['手機 & 行動電源', '充電線 & 充電頭', 'WiFi機/網卡', '降噪耳機', '相機 & 記憶卡'] },
                 { category: '五、藥品與保健', items: ['個人處方藥', '常備感冒/腸胃藥', '退燒藥/止痛藥', '防蚊液 & 止癢藥膏', 'OK繃 & 酒精棉片'] },
                 { category: '六、盥洗與清潔', items: ['牙刷 & 牙膏', '洗面乳 & 護膚品', '乾洗手 & 口罩', '衛生紙 & 生理用品'] }
+            ];
+
+            const members = ['KCY', 'Ruby', 'YSL', 'Tsai'];
+            const dates = [
+                { date: '5/30', dayName: 'SAT' }, { date: '5/31', dayName: 'SUN' },
+                { date: '6/1', dayName: 'MON' }, { date: '6/2', dayName: 'TUE' },
+                { date: '6/3', dayName: 'WED' }, { date: '6/4', dayName: 'THU' },
+                { date: '6/5', dayName: 'FRI' }, { date: '6/6', dayName: 'SAT' }
             ];
 
             const [isEditingPlan, setIsEditingPlan] = useState(false);
@@ -251,7 +249,6 @@
                 return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
             }, []);
 
-            // 🕒 天氣 API
             const fetchWeather = useCallback(async (retries = 3) => {
                 try {
                     const res = await fetch('https://api.open-meteo.com/v1/forecast?latitude=33.5902&longitude=130.4017&current_weather=true&daily=weathercode,temperature_2m_max,temperature_2m_min&timezone=Asia%2FTokyo');
@@ -265,7 +262,6 @@
 
             useEffect(() => { fetchWeather(); }, [fetchWeather]);
 
-            // 🔊 語音播放 (修復 WAV 封裝邏輯)
             const speakPhrase = async (phrase, retries = 5) => {
                 if (speakingId) return;
                 setSpeakingId(phrase.id);
@@ -314,4 +310,253 @@
                     setExpenses(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => (b.date||"").localeCompare(a.date||"")));
                 });
                 const unsubItin = db.collection(`${pathBase}/itinerary`).onSnapshot(snap => {
-                    setItineraryData(
+                    setItineraryData(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+                });
+                return () => { unsubExp(); unsubItin(); };
+            }, [user]);
+
+            const currentDayPlans = useMemo(() => {
+                const day = dates[selectedDayIdx];
+                if (!day) return [];
+                const target = day.date;
+                const cloudPlans = (itineraryData || []).filter(p => p && p.targetDate === target);
+                const cloudIds = new Set(cloudPlans.map(p => p.id));
+                const staticPlans = (DEFAULT_PLANS[target] || [])
+                    .map(p => ({ ...p, id: `static-${target.replace('/', '-')}-${p.time.replace(':', '-')}`, isStatic: true }))
+                    .filter(p => !cloudIds.has(p.id));
+                return [...cloudPlans, ...staticPlans].sort((a,b) => (a.time||'99:99').localeCompare(b.time||'99:99'));
+            }, [itineraryData, selectedDayIdx]);
+
+            const handleJpyChange = (v) => { setFxJpy(v); setFxTwd(v === '' ? '' : Math.round(parseFloat(v) * exchangeRate).toString()); };
+            const handleTwdChange = (v) => { setFxTwd(v); setFxJpy(v === '' ? '' : Math.round(parseFloat(v) / exchangeRate).toString()); };
+            const showToast = (msg) => { setToast({ show: true, msg }); setTimeout(() => setToast({ show: false, msg: '' }), 3000); };
+            const openMap = (q) => { window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`, '_blank'); };
+
+            const savePlan = async () => {
+                if (!editPlanBuffer.time || !editPlanBuffer.title || !user) return;
+                setIsSaving(true);
+                try {
+                    const safeId = editingPlan ? editingPlan.id : `plan-${Date.now()}`;
+                    await db.collection(`artifacts/${appId}/public/data/itinerary`).doc(safeId).set({ ...editPlanBuffer, targetDate: dates[selectedDayIdx].date, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
+                    setIsEditingPlan(false); setEditingPlan(null); showToast("行程同步成功 💜");
+                } finally { setIsSaving(false); }
+            };
+
+            const deletePlan = async (e, id) => {
+                e.stopPropagation();
+                if (!window.confirm("確定要刪除嗎？ 💜")) return;
+                await db.collection(`artifacts/${appId}/public/data/itinerary`).doc(id).delete();
+                showToast("已從雲端移除");
+            };
+
+            const addExpense = async () => {
+                if (!newExpense.item || !newExpense.amount || !user) return;
+                setIsSaving(true);
+                try {
+                    await db.collection(`artifacts/${appId}/public/data/expenses`).add({
+                        ...newExpense, amount: parseFloat(newExpense.amount), amountTwd: Math.round(parseFloat(newExpense.amount) * exchangeRate), createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                    setNewExpense({ ...newExpense, item: '', amount: '' }); showToast("記帳成功 💜");
+                } finally { setIsSaving(false); }
+            };
+
+            const toggleCategory = (catName) => { setExpandedCats(prev => ({ ...prev, [catName]: !prev[catName] })); };
+
+            return (
+                <div className="max-w-md mx-auto min-h-screen relative pb-24 bg-[#F8F9FA]">
+                    {/* Toast */}
+                    <div className={`fixed top-6 left-1/2 -translate-x-1/2 z-[200] transition-all duration-500 ${toast.show ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-10 pointer-events-none'}`}>
+                        <div className="bg-black/90 text-white px-6 py-3 rounded-full flex items-center gap-2 shadow-xl border border-purple-400 backdrop-blur-md text-sm">
+                            <Icon name="check-circle" size={18} className="text-pink-400" />
+                            <span className="font-bold">{toast.msg}</span>
+                        </div>
+                    </div>
+
+                    <header className="bg-white px-6 pt-12 pb-8 rounded-b-[40px] shadow-sm relative overflow-hidden">
+                        <div className="absolute top-0 right-0 -mr-10 -mt-10 opacity-10"><Icon name="heart" size={200} className="text-purple-400" /></div>
+                        <div className="flex justify-between items-start relative z-10">
+                            <div>
+                                <h1 className="text-4xl font-black tracking-tight text-slate-800 kuromi-font">福岡 2026</h1>
+                                <div className="flex items-center gap-2 mt-3">
+                                    <div className="flex -space-x-2">{members.map(m => (<div key={m} className="w-8 h-8 rounded-full border-2 border-white kuromi-gradient flex items-center justify-center text-[10px] text-white font-bold shadow-sm">{m[0]}</div>))}</div>
+                                    <span className="text-[10px] text-slate-400 font-bold ml-2 uppercase tracking-widest">FAMILY TRIP</span>
+                                </div>
+                            </div>
+                            <div onClick={() => setIsWeatherModalOpen(true)} className="bg-purple-50 p-4 rounded-3xl text-center min-w-[100px] border border-purple-100 shadow-sm float-anim cursor-pointer">
+                                <Icon name={weather.loading ? 'refresh' : (weather.code <= 3 ? 'sun' : 'cloud')} size={32} className={`mx-auto mb-1 ${weather.loading ? 'animate-spin' : 'text-purple-400'}`} />
+                                <p className="text-2xl font-black text-purple-600">{weather.temp}°C</p>
+                                <p className="text-[9px] text-purple-300 font-bold uppercase">Fukuoka</p>
+                            </div>
+                        </div>
+                        <div className="mt-8 bg-slate-50 p-4 rounded-2xl flex items-center justify-between border border-slate-100">
+                             <div className="flex items-center gap-3"><div className="p-2 bg-pink-100 rounded-xl text-pink-500"><Icon name="sparkles" size={16} /></div><span className="text-sm font-bold text-slate-600">出發倒數</span></div>
+                             <span className="text-2xl font-black text-pink-400">{countdownDays} <span className="text-xs text-slate-300 font-bold">DAYS</span></span>
+                        </div>
+                    </header>
+
+                    <nav className="flex bg-white/90 backdrop-blur-md sticky top-0 z-50 px-4 py-2 border-b border-slate-100 mb-6 shadow-sm overflow-x-auto hide-scrollbar">
+                        <button onClick={() => { setActiveTab('itinerary'); setItineraryView('list'); }} className={`flex-1 min-w-[80px] py-4 font-black nav-btn transition-all ${activeTab === 'itinerary' ? 'tab-active' : 'text-slate-300'}`}>行程</button>
+                        <button onClick={() => setActiveTab('map')} className={`flex-1 min-w-[80px] py-4 font-black nav-btn transition-all ${activeTab === 'map' ? 'tab-active' : 'text-slate-300'}`}>地圖</button>
+                        <button onClick={() => setActiveTab('expense')} className={`flex-1 min-w-[80px] py-4 font-black nav-btn transition-all ${activeTab === 'expense' ? 'tab-active' : 'text-slate-300'}`}>記帳</button>
+                        <button onClick={() => setActiveTab('tools')} className={`flex-1 min-w-[80px] py-4 font-black nav-btn transition-all ${activeTab === 'tools' ? 'tab-active' : 'text-slate-300'}`}>工具</button>
+                    </nav>
+
+                    <div className="px-6">
+                        {activeTab === 'itinerary' && (
+                            itineraryView === 'list' ? (
+                                <div className="space-y-6 animate-in fade-in">
+                                    <h2 className="text-2xl font-black text-slate-800 italic underline decoration-chic-purple decoration-4 underline-offset-4">行程總覽 🗺️</h2>
+                                    <div className="grid grid-cols-1 gap-4">
+                                        {dates.map((day, idx) => (
+                                            <div key={day.date} onClick={() => { setSelectedDayIdx(idx); setItineraryView('detail'); }} className="chic-card p-6 flex items-center gap-6 active:bg-purple-50 transition-all cursor-pointer group">
+                                                <div className="w-16 h-16 rounded-3xl kuromi-gradient flex flex-col items-center justify-center text-white shadow-lg group-active:scale-90 transition-transform"><span className="text-[10px] font-bold opacity-60 uppercase">{day.dayName}</span><span className="text-3xl font-black">{day.date.split('/')[1]}</span></div>
+                                                <div className="flex-1"><p className="text-xs font-bold text-slate-300 mb-1">DATE: {day.date}</p><p className="text-xl font-black text-slate-700">{DEFAULT_PLANS[day.date]?.[0]?.title || '探索福岡'}</p></div>
+                                                <Icon name="chevron-right" size={24} className="text-slate-200" />
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="space-y-8 animate-in slide-in-from-bottom">
+                                    <div className="flex items-center gap-4"><button onClick={() => setItineraryView('list')} className="p-4 bg-white rounded-full shadow-md text-slate-400 active:scale-75 transition-all"><Icon name="chevron-left" size={24} /></button><div><h2 className="text-3xl font-black text-slate-800">{dates[selectedDayIdx]?.date}</h2><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest tracking-tighter">ITINERARY DETAILS</p></div></div>
+                                    <div className="relative pl-10 space-y-12">
+                                        {(currentDayPlans || []).map((plan, i) => (
+                                            <div key={plan.id} className="timeline-item relative">
+                                                <div className="timeline-line"></div>
+                                                <div className={`absolute -left-[48px] top-2 w-10 h-10 rounded-full border-4 border-white shadow-md z-10 flex items-center justify-center ${plan.isStatic || plan.type==='fixed' ? 'bg-pink-400' : plan.type==='restaurant' ? 'bg-orange-400' : 'bg-indigo-400'}`}>
+                                                    <Icon name={plan.type==='restaurant' ? 'utensils' : plan.type==='fixed' ? 'plane' : 'sparkles'} size={18} className="text-white" />
+                                                </div>
+                                                <div className="chic-card p-6 border-l-8" style={{ borderLeftColor: plan.isStatic||plan.type==='fixed' ? '#FF91C1' : plan.type==='restaurant' ? '#FFB085' : '#85A5FF' }}>
+                                                    <div className="flex justify-between items-start mb-2">
+                                                        <span className="text-sm font-black text-slate-400">{plan.time}</span>
+                                                        <div className="flex gap-2">
+                                                            <button onClick={(e) => { e.stopPropagation(); setEditingPlan(plan); setEditPlanBuffer({time:plan.time, title:plan.title, type:plan.type}); setIsEditingPlan(true); }} className="text-slate-200 p-1 hover:text-chic-purple"><Icon name="pencil" size={16}/></button>
+                                                            {!plan.isStatic && <button onClick={(e) => deletePlan(e, plan.id)} className="text-slate-200 p-1 hover:text-red-400"><Icon name="trash" size={16}/></button>}
+                                                        </div>
+                                                    </div>
+                                                    <h3 className="text-xl font-black text-slate-700 leading-tight mb-4">{plan.title}</h3>
+                                                    <button onClick={() => openMap(plan.title)} className="text-xs font-bold text-blue-400 flex items-center gap-1"><Icon name="navigation" size={12}/> 查看地圖</button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <button onClick={() => { setEditingPlan(null); setEditPlanBuffer({time:'', title:'', type: 'attraction'}); setIsEditingPlan(true); }} className="w-full bg-white border-2 border-dashed border-slate-200 text-slate-400 py-6 rounded-[30px] flex items-center justify-center gap-3 active:bg-slate-50 transition-all font-bold"><Icon name="plus" size={20} /> 新增行程點</button>
+                                </div>
+                            )
+                        )}
+
+                        {activeTab === 'map' && (
+                            <div className="space-y-8 animate-in fade-in">
+                                <h2 className="text-2xl font-black text-slate-800 italic underline decoration-chic-purple decoration-4 underline-offset-4">福岡景點地圖 📍</h2>
+                                <button onClick={() => window.open('https://maps.app.goo.gl/pd5Mgn8orC6EG7dc6', '_blank')} className="w-full bg-slate-900 text-white p-8 rounded-[40px] shadow-xl flex items-center justify-between border-4 border-white active:scale-95 transition-all">
+                                    <div className="text-left"><p className="text-2xl font-black mb-1">開啟 Google Maps</p><p className="text-[10px] font-bold opacity-40 uppercase tracking-widest">Full Location List</p></div>
+                                    <div className="bg-chic-purple p-4 rounded-full shadow-lg"><Icon name="navigation" size={24} /></div>
+                                </button>
+                                <div className="space-y-8 pb-10">
+                                    {(mapSpotList || []).map((group, idx) => (
+                                        <div key={idx} className="space-y-4">
+                                            <h3 className="text-lg font-black text-slate-400 px-2 uppercase tracking-widest flex items-center gap-3"><div className="w-1.5 h-1.5 rounded-full bg-chic-purple"></div>{group.category}</h3>
+                                            <div className="grid grid-cols-1 gap-3">{(group.items || []).map((item, i) => (<div key={i} onClick={() => openMap(item)} className="chic-card p-5 flex items-center justify-between active:scale-95 transition-all"><span className="text-lg font-black text-slate-700">{item}</span><Icon name="chevron-right" size={20} className="text-slate-200" /></div>))}</div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'expense' && (
+                            <div className="space-y-6 animate-in fade-in">
+                                <div className="kuromi-gradient text-white p-10 rounded-[45px] shadow-2xl space-y-6 relative overflow-hidden">
+                                    <div className="absolute top-0 right-0 p-10 opacity-10 rotate-12"><Icon name="coins" size={150}/></div>
+                                    <p className="text-[10px] font-black uppercase tracking-[0.3em] opacity-60">雙向即時換算</p>
+                                    <div className="space-y-4 relative z-10">
+                                        <div className="flex items-center gap-4 border-b border-white/20 pb-3"><span className="text-3xl font-black opacity-40">¥</span><input type="number" value={fxJpy} onChange={(e) => handleJpyChange(e.target.value)} placeholder="0" className="flex-1 bg-transparent text-6xl font-black focus:outline-none placeholder:text-white/10" /></div>
+                                        <div className="flex items-center gap-4 pt-2"><span className="text-3xl font-black text-pink-300">$</span><input type="number" value={fxTwd} onChange={(e) => handleTwdChange(e.target.value)} placeholder="0" className="flex-1 bg-transparent text-6xl font-black text-pink-200 focus:outline-none placeholder:text-pink-300/20" /></div>
+                                    </div>
+                                </div>
+                                <div className="bg-white rounded-[40px] p-8 shadow-xl space-y-6">
+                                    <h3 className="text-xl font-black text-slate-800">新增花費 🍴</h3>
+                                    <div className="space-y-4">
+                                        <div className="flex gap-4"><input type="date" value={newExpense.date} onChange={(e) => setNewExpense({...newExpense, date: e.target.value})} className="flex-1 bg-slate-50 rounded-2xl p-4 font-bold text-sm outline-none" /><select value={newExpense.payer} onChange={(e) => setNewExpense({...newExpense, payer: e.target.value})} className="bg-purple-50 rounded-2xl px-6 font-bold text-sm text-purple-600 outline-none">{members.map(m => <option key={m} value={m}>{m}</option>)}</select></div>
+                                        <input placeholder="品項名稱" value={newExpense.item} onChange={(e) => setNewExpense({...newExpense, item: e.target.value})} className="w-full bg-slate-50 rounded-2xl p-4 font-bold outline-none" /><input type="number" placeholder="金額 ¥" value={newExpense.amount} onChange={(e) => setNewExpense({...newExpense, amount: e.target.value})} className="w-full bg-slate-50 rounded-2xl p-6 text-3xl font-black outline-none" />
+                                    </div>
+                                    <button onClick={addExpense} disabled={isSaving} className="w-full kuromi-gradient text-white py-6 rounded-[30px] font-black text-xl shadow-lg flex items-center justify-center gap-3">{isSaving ? <Icon name="refresh" className="animate-spin-custom" size={20}/> : "記錄此筆開銷 💜"}</button>
+                                </div>
+                                <div className="space-y-4 pb-10">{(expenses || []).map(ex => (<div key={ex.id} className="chic-card p-5 flex justify-between items-center border-l-[10px] border-chic-purple"><div className="flex-1 mr-2"><div className="flex items-center gap-3 mb-1"><span className="text-[10px] font-black text-white bg-slate-800 px-3 py-1 rounded-lg uppercase">{ex.payer}</span><span className="text-[10px] text-slate-300 font-bold">{ex.date}</span></div><p className="text-xl font-black text-slate-700">{ex.item}</p></div><div className="text-right flex items-center gap-3"><div><p className="text-2xl font-black text-slate-800">¥{ex.amount?.toLocaleString()}</p><p className="text-xs font-bold text-pink-400">NT${ex.amountTwd?.toLocaleString()}</p></div><button onClick={() => db.collection(`artifacts/${appId}/public/data/expenses`).doc(ex.id).delete()} className="p-2 text-slate-200 hover:text-red-400"><Icon name="trash" size={14}/></button></div></div>))}</div>
+                            </div>
+                        )}
+
+                        {activeTab === 'tools' && (
+                            <div className="space-y-10 animate-in fade-in pb-20">
+                                <div className="bg-slate-900 text-white p-8 rounded-[40px] shadow-2xl relative overflow-hidden"><div className="absolute top-0 right-0 p-8 opacity-20"><Icon name="plane" size={100}/></div><h3 className="text-2xl font-black mb-6 italic text-chic-pink">航班詳情 ✈️</h3><div className="space-y-4"><div className="flex justify-between items-center p-4 bg-white/5 rounded-2xl border border-white/10"><div><p className="text-[10px] font-bold text-white/40 mb-1">5/30 GO (CI128)</p><p className="text-xl font-black">14:40 ⮕ 18:05</p></div><div className="text-right"><p className="text-[10px] font-bold text-white/40 mb-1">TERMINAL</p><p className="text-xl font-black text-chic-pink">T1</p></div></div><div className="flex justify-between items-center p-4 bg-white/5 rounded-2xl border border-white/10"><div><p className="text-[10px] font-bold text-white/40 mb-1">6/06 BACK (CI129)</p><p className="text-xl font-black">19:10 ⮕ 20:35</p></div><div className="text-right"><p className="text-[10px] font-bold text-white/40 mb-1">TERMINAL</p><p className="text-xl font-black text-chic-pink">INTL</p></div></div></div></div>
+                                <div className="chic-card p-8 text-center border-4 border-chic-purple"><div className="w-16 h-16 bg-purple-50 rounded-full flex items-center justify-center mx-auto mb-4 text-chic-purple"><Icon name="hotel" size={32}/></div><h3 className="text-2xl font-black text-slate-800">博多西鐵 CROOM</h3><p className="text-[10px] text-slate-400 font-bold mb-8 uppercase tracking-[0.2em]">櫛田神社前站 4 號出口對面</p><div className="flex gap-4"><button onClick={() => openMap('博多祇園櫛田神社前西鐵克魯姆酒店')} className="flex-1 kuromi-gradient text-white py-5 rounded-2xl font-black text-sm shadow-md">地圖定位</button><a href="tel:092-235-0311" className="flex-1 border-4 border-slate-900 py-5 rounded-2xl font-black text-sm text-slate-900">聯絡電話</a></div></div>
+                                
+                                <section>
+                                    <div onClick={() => toggleCategory('生存日語小手冊')} className="flex items-center justify-between chic-card p-6 mb-8 cursor-pointer"><div className="flex items-center gap-4"><div className="p-3 bg-pink-50 rounded-2xl text-chic-pink"><Icon name="languages" size={24} /></div><p className="text-xl font-black text-slate-700">生存日語手冊</p></div><Icon name={expandedCats['生存日語小手冊'] ? "chevron-down" : "chevron-right"} size={28} className="text-slate-200" /></div>
+                                    {expandedCats['生存日語小手冊'] && (<div className="grid grid-cols-1 gap-4 px-1 animate-in fade-in">{(survivalPhrases || []).map((p, i) => (<div key={i} className="chic-card p-5 flex justify-between items-center border border-pink-50"><div><p className="text-[10px] font-bold text-pink-300 mb-1">{p.tw}</p><p className="text-xl font-black text-slate-700">{p.jp}</p><p className="text-xs text-slate-300 italic font-bold">[{p.ro}]</p></div><button onClick={() => speakPhrase(p)} className={`p-4 rounded-full transition-all active:scale-90 ${speakingId === p.id ? 'bg-pink-100 text-pink-500' : 'bg-pink-50 text-chic-pink'}`}><Icon name={speakingId === p.id ? "refresh" : "volume"} size={20} className={speakingId === p.id ? 'animate-spin' : ''} /></button></div>))}</div>)}
+                                </section>
+
+                                <section>
+                                    <div className="flex items-center gap-3 mb-6 px-1"><div className="p-3 bg-pink-100 rounded-2xl text-[#FF91C1]"><Icon name="luggage" size={24} /></div><h3 className="text-2xl font-black text-slate-800 underline decoration-pink-300">行李清單 💜</h3></div>
+                                    {packingListTemplate.map((cat, idx) => {
+                                        const isExpanded = expandedCats[cat.category];
+                                        return (
+                                            <div key={idx} className="mb-6">
+                                                <div onClick={() => toggleCategory(cat.category)} className="flex items-center justify-between chic-card p-5 active:bg-purple-50 transition-all cursor-pointer"><p className="text-lg font-black text-[#8A63B3] border-l-8 border-[#9D76C1] px-4 uppercase tracking-wide">{cat.category}</p><Icon name={isExpanded ? "chevron-down" : "chevron-right"} size={28} className="text-purple-300" /></div>
+                                                {isExpanded && (<div className="space-y-3 px-2 mt-4 animate-in fade-in">{(cat.items || []).map(item => { const isDone = packingItems[item] === true; return (<div key={item} onClick={() => setPackingItems(prev => ({...prev, [item]:!prev[item]}))} className={`chic-card p-4 flex items-center gap-4 active:scale-95 ${isDone ? 'opacity-50' : ''}`}><div className={`w-8 h-8 rounded-xl border-2 flex items-center justify-center transition-all ${isDone ? 'bg-[#9D76C1] border-transparent' : 'border-purple-100'}`}>{isDone && <Icon name="check" className="text-white" size={16} />}</div><span className={`text-lg font-black text-slate-700 ${isDone ? 'line-through' : ''}`}>{item}</span></div>);})}</div>)}
+                                            </div>
+                                        );
+                                    })}
+                                </section>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Modals */}
+                    {isWeatherModalOpen && (
+                        <div className="fixed inset-0 z-[120] modal-mask flex items-center justify-center p-8">
+                            <div className="bg-white w-full rounded-[50px] p-8 shadow-2xl space-y-6 animate-in slide-in-from-bottom duration-300 max-h-[80vh] overflow-y-auto hide-scrollbar">
+                                <div className="flex justify-between items-center mb-4"><h3 className="text-3xl font-black text-slate-800 italic underline decoration-chic-purple decoration-4">福岡預報 🌦️</h3><button onClick={() => setIsWeatherModalOpen(false)} className="p-3 text-slate-300"><Icon name="x" size={24} /></button></div>
+                                <div className="space-y-4">{(forecast || []).map((f, i) => (<div key={i} className="flex items-center justify-between p-5 bg-slate-50 rounded-3xl"><div className="flex items-center gap-4"><span className="text-lg font-black text-slate-400 w-12">{f.date}</span><Icon name={f.code <= 3 ? 'sun' : 'cloud'} size={28} className="text-chic-purple" /></div><div className="flex items-center gap-3"><span className="text-xl font-black text-slate-700">{f.max}°</span><div className="w-px h-6 bg-slate-200"></div><span className="text-xl font-black text-slate-300">{f.min}°</span></div></div>))}</div>
+                            </div>
+                        </div>
+                    )}
+
+                    {isEditingPlan && (
+                        <div className="fixed inset-0 z-[110] modal-mask flex items-center justify-center p-8">
+                            <div className="bg-white w-full rounded-[50px] p-10 shadow-2xl space-y-8 animate-in zoom-in">
+                                <h3 className="text-3xl font-black text-slate-800 text-center kuromi-font">{editingPlan ? '修改行程' : '新增行程'}</h3>
+                                <div className="space-y-6">
+                                    <div className="flex gap-2">
+                                        {['attraction', 'restaurant'].map(type => (
+                                            <button key={type} onClick={() => setEditPlanBuffer({...editPlanBuffer, type})} 
+                                                    className={`flex-1 py-4 rounded-2xl font-black text-sm border-2 transition-all ${editPlanBuffer.type === type ? 'border-chic-purple bg-purple-50 text-chic-purple shadow-inner' : 'border-slate-50 bg-slate-50 text-slate-400'}`}>
+                                                {type === 'attraction' ? '景點 ⛩️' : '餐廳 🍴'}
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <input value={editPlanBuffer.time} onChange={(e) => setEditPlanBuffer({...editPlanBuffer, time: e.target.value})} placeholder="時間 (如 14:30)" className="w-full bg-slate-50 rounded-2xl p-5 text-2xl font-black outline-none" />
+                                    <input value={editPlanBuffer.title} onChange={(e) => setEditPlanBuffer({...editPlanBuffer, title: e.target.value})} placeholder="去哪裡呢？" className="w-full bg-slate-50 rounded-2xl p-5 text-xl font-black outline-none" />
+                                </div>
+                                <div className="flex gap-4">
+                                    <button onClick={savePlan} disabled={isSaving} className="flex-1 kuromi-gradient text-white py-6 rounded-[30px] font-black text-xl shadow-lg flex items-center justify-center gap-3">
+                                        {isSaving && <Icon name="refresh" className="animate-spin-custom" size={20}/>} 儲存行程 💜
+                                    </button>
+                                    <button onClick={() => setIsEditingPlan(false)} className="px-10 bg-slate-100 text-slate-400 rounded-[30px] font-bold">取消</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    
+                    <div className="fixed bottom-0 left-0 right-0 h-4 kuromi-gradient z-[60]"></div>
+                </div>
+            );
+        };
+
+        const container = document.getElementById('root');
+        if (container) { 
+            const root = ReactDOM.createRoot(container); 
+            root.render(<App />); 
+        }
+    </script>
+</body>
+</html>
