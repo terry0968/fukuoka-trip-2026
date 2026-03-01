@@ -170,7 +170,8 @@
                 'sun': "M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10z M12 1v2 M12 21v2 M4.22 4.22l1.42 1.42 M18.36 18.36l1.42 1.42 M1 12h2 M21 12h2 M4.22 19.78l1.42-1.42 M18.36 5.64l1.42-1.42",
                 'cloud': "M17.5 19a5.5 5.5 0 0 0 0-11 1.5 1.5 0 0 0-1.5 1.5A7 7 0 1 0 5 15.5 5.5 5.5 0 0 0 10.5 21h7",
                 'cloud-rain': "M16 13v8 M8 13v8 M12 15v8 M20 16.58A5 5 0 0 0 18 7h-1.26A8 8 0 1 0 4 15.25",
-                'car': "M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.5 2.9C1.4 11.1 1 11.7 1 12.2V16c0 .6.4 1 1 1h2m0 0a3 3 0 1 0 6 0m-6 0a3 3 0 1 1 6 0m5 0h2a3 3 0 1 0 6 0m-6 0a3 3 0 1 1 6 0"
+                'car': "M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.5 2.9C1.4 11.1 1 11.7 1 12.2V16c0 .6.4 1 1 1h2m0 0a3 3 0 1 0 6 0m-6 0a3 3 0 1 1 6 0m5 0h2a3 3 0 1 0 6 0m-6 0a3 3 0 1 1 6 0",
+                'ticket': "M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v2z M13 5v2 M13 11v2 M13 17v2"
             };
             return (
                 <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={`${className} pointer-events-none transition-all`}>
@@ -199,14 +200,34 @@
             const [expandedCats, setExpandedCats] = useState({
                 '一、證件與金錢': true, '二、Ruby 寶寶專區': true, '三、衣物配件': true,
                 '四、3C 數位產品': true, '五、藥品與保健': true, '六、盥洗與清潔': true,
-                '生存日語小手冊': true
+                '生存日語小手冊': true, '優惠卷專區': true
             });
 
-            // 🛠️ 地點資料匯入 (根據清單連結與熱門點)
+            // 🛠️ 地點資料
             const mapSpotList = [
                 { category: '推薦景點 ⛩️', items: ['博多運河城', '櫛田神社', '太宰府天滿宮', '福岡城跡/大濠公園', '福岡塔', 'LaLaport 福岡 (鋼彈)', '海之中道海濱公園', 'TeamLab Forest Fukuoka'] },
                 { category: '美味餐廳 🥩', items: ['燒肉 大東園', '一蘭拉麵 總店', '博多華味鳥 (水炊鍋)', '元祖博多明太子飯', '博多牛雜鍋 おおやま', 'bills 福岡 (鬆餅)', '極味屋 博多店'] },
                 { category: '必逛購物 🛍️', items: ['天神地下街', '唐吉訶德 中洲店', '大國藥妝', '永旺夢樂城 AEON', '博多車站阪急', '福岡 PARCO'] }
+            ];
+
+            // 🛠️ 優惠卷資料
+            const couponList = [
+                { category: '1. 藥妝店 💊', items: [
+                    { name: '松本清 (Matsumoto Kiyoshi)', link: 'https://www.matsukiyo.co.jp/guide/coupon' },
+                    { name: '大國藥妝 (Daikoku Drug)', link: 'https://daikokudrug.com/customer/coupon/' },
+                    { name: '鶴羽藥妝 (Tsuruha Drug)', link: 'https://www.tsuruha.co.jp/service/coupon/' }
+                ]},
+                { category: '2. 電器 服飾 運動用品 👟', items: [
+                    { name: 'Bic Camera (免稅+折扣)', link: 'https://www.biccamera.com.e.aw.hp.transer.com/service/logistics/tax-free/' },
+                    { name: 'EDION 愛電王', link: 'https://www.edion.com/service/taxfree' },
+                    { name: 'Don Quijote (唐吉訶德)', link: 'https://www.donki.com/service/tax_free/' },
+                    { name: 'Uniqlo / GU 免稅資訊', link: 'https://www.uniqlo.com/jp/en/contents/tax-free/' }
+                ]},
+                { category: '3. 百貨公司 機場免稅店 🛫', items: [
+                    { name: '三越伊勢丹 (GUEST CARD)', link: 'https://www.mistore.jp/store/shinjuku/foreign_customer.html' },
+                    { name: '岩田屋 IWATAYA', link: 'https://www.iwataya-mitsukoshi.mistore.jp/iwataya/service/guestcard.html' },
+                    { name: '福岡機場免稅店預約', link: 'https://fukuoka-airport.jp/dutyfree/' }
+                ]}
             ];
 
             const survivalPhrases = [
@@ -394,6 +415,7 @@
                     </nav>
 
                     <div className="px-6">
+                        {/* 1. 行程分頁 */}
                         {activeTab === 'itinerary' && (
                             itineraryView === 'list' ? (
                                 <div className="space-y-6 animate-in fade-in">
@@ -437,6 +459,7 @@
                             )
                         )}
 
+                        {/* 2. 地圖分頁 */}
                         {activeTab === 'map' && (
                             <div className="space-y-8 animate-in fade-in">
                                 <h2 className="text-2xl font-black text-slate-800 italic underline decoration-chic-purple decoration-4 underline-offset-4">景點/美食地圖 📍</h2>
@@ -445,7 +468,7 @@
                                     <div className="bg-chic-purple p-4 rounded-full shadow-lg"><Icon name="navigation" size={24} /></div>
                                 </button>
                                 <div className="space-y-8 pb-10">
-                                    {mapSpotList.map((group, idx) => (
+                                    {(mapSpotList || []).map((group, idx) => (
                                         <div key={idx} className="space-y-4">
                                             <h3 className="text-lg font-black text-slate-400 px-2 uppercase tracking-widest flex items-center gap-3"><div className="w-1.5 h-1.5 rounded-full bg-chic-purple"></div>{group.category}</h3>
                                             <div className="grid grid-cols-1 gap-3">{(group.items || []).map((item, i) => (<div key={i} onClick={() => openMap(item)} className="chic-card p-5 flex items-center justify-between active:scale-95 transition-all cursor-pointer"><span className="text-lg font-black text-slate-700">{item}</span><Icon name="chevron-right" size={20} className="text-slate-200" /></div>))}</div>
@@ -455,6 +478,7 @@
                             </div>
                         )}
 
+                        {/* 3. 記帳分頁 */}
                         {activeTab === 'expense' && (
                             <div className="space-y-6 animate-in fade-in">
                                 <div className="kuromi-gradient text-white p-10 rounded-[45px] shadow-2xl space-y-6 relative overflow-hidden">
@@ -477,9 +501,42 @@
                             </div>
                         )}
 
+                        {/* 4. 工具分頁 */}
                         {activeTab === 'tools' && (
                             <div className="space-y-10 animate-in fade-in pb-20">
+                                {/* 優惠卷區 */}
+                                <section>
+                                    <div onClick={() => toggleCategory('優惠卷專區')} className="flex items-center justify-between chic-card p-6 mb-8 cursor-pointer active:bg-purple-50 transition-all shadow-md border-b-8 border-chic-orange">
+                                        <div className="flex items-center gap-4">
+                                            <div className="p-3 bg-orange-100 rounded-2xl text-chic-orange font-bold italic"><Icon name="ticket" size={24} /></div>
+                                            <p className="text-xl font-black text-slate-700">旅遊優惠卷專區</p>
+                                        </div>
+                                        <Icon name={expandedCats['優惠卷專區'] ? "chevron-down" : "chevron-right"} size={28} className="text-slate-200" />
+                                    </div>
+                                    {expandedCats['優惠卷專區'] && (
+                                        <div className="space-y-6 px-1 animate-in fade-in">
+                                            {couponList.map((group, idx) => (
+                                                <div key={idx} className="space-y-3">
+                                                    <h4 className="text-sm font-black text-chic-orange uppercase tracking-widest pl-2 flex items-center gap-2">
+                                                        <div className="w-1 h-4 bg-chic-orange rounded-full"></div>
+                                                        {group.category}
+                                                    </h4>
+                                                    <div className="grid grid-cols-1 gap-3">
+                                                        {group.items.map((item, i) => (
+                                                            <div key={i} onClick={() => window.open(item.link, '_blank')} className="chic-card p-5 flex items-center justify-between active:bg-orange-50 transition-all cursor-pointer">
+                                                                <span className="font-bold text-slate-600">{item.name}</span>
+                                                                <div className="p-2 bg-slate-50 rounded-xl text-slate-300"><Icon name="chevron-right" size={16}/></div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </section>
+
                                 <div className="bg-slate-900 text-white p-8 rounded-[40px] shadow-2xl relative overflow-hidden"><div className="absolute top-0 right-0 p-8 opacity-20"><Icon name="plane" size={100}/></div><h3 className="text-2xl font-black mb-6 italic text-chic-pink">航班詳情 ✈️</h3><div className="space-y-4"><div className="flex justify-between items-center p-4 bg-white/5 rounded-2xl border border-white/10"><div><p className="text-[10px] font-bold text-white/40 mb-1">5/30 GO (CI128)</p><p className="text-xl font-black">14:40 ⮕ 18:05</p></div><div className="text-right"><p className="text-[10px] font-bold text-white/40 mb-1">TERMINAL</p><p className="text-xl font-black text-chic-pink">T1</p></div></div><div className="flex justify-between items-center p-4 bg-white/5 rounded-2xl border border-white/10"><div><p className="text-[10px] font-bold text-white/40 mb-1">6/06 BACK (CI129)</p><p className="text-xl font-black">19:10 ⮕ 20:35</p></div><div className="text-right"><p className="text-[10px] font-bold text-white/40 mb-1">TERMINAL</p><p className="text-xl font-black text-chic-pink">INTL</p></div></div></div></div>
+                                
                                 <div className="chic-card p-8 text-center border-4 border-chic-purple"><div className="w-16 h-16 bg-purple-50 rounded-full flex items-center justify-center mx-auto mb-4 text-chic-purple"><Icon name="hotel" size={32}/></div><h3 className="text-2xl font-black text-slate-800">博多西鐵 CROOM</h3><p className="text-[10px] text-slate-400 font-bold mb-8 uppercase tracking-[0.2em]">櫛田神社前站 4 號出口對面</p><div className="flex gap-4"><button onClick={() => openMap('博多祇園櫛田神社前西鐵克魯姆酒店')} className="flex-1 kuromi-gradient text-white py-5 rounded-2xl font-black text-sm shadow-md">地圖定位</button><a href="tel:092-235-0311" className="flex-1 border-4 border-slate-900 py-5 rounded-2xl font-black text-sm text-slate-900">聯絡電話</a></div></div>
                                 
                                 <section>
