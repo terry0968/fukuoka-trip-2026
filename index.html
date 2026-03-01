@@ -105,7 +105,6 @@
         const auth = firebase.auth();
         const db = firebase.firestore();
         const appId = "fukuoka-2026";
-        const apiKey = ""; 
 
         // 🛠️ 資料庫：預設暫定行程
         const DEFAULT_PLANS = {
@@ -163,8 +162,6 @@
                 'map-pinned': "M12 22s-8-4.5-8-11.8A8 8 0 0 1 12 2a8 8 0 0 1 8 8.2c0 7.3-8 11.8-8 11.8z M12 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6z",
                 'utensils': "M3 2v7c0 1.1.9 2 2 2h4c1.1 0 2-.9 2-2V2M7 2v20M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7",
                 'plane': "M22 16.21v-1.89L14.84 9.9 14.84 4a1.5 1.5 0 0 0-3 0v5.9L4.67 14.32v1.89l7.17-2.73v5.13l-1.71 1.14v1.33l3.37-1.01 3.37 1.01v-1.33l-1.71-1.14v-5.13L22 16.21z",
-                'languages': "M5 8l6 6M4 14l6-6M2 5h12M7 2h1M22 22l-5-10-5 10M14 18h6",
-                'volume': "M11 5L6 9H2v6h4l5 4V5z M19.07 4.93a10 10 0 0 1 0 14.14 M15.54 8.46a5 5 0 0 1 0 7.07",
                 'shopping': "M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4H6zm-2 4h16M16 10a4 4 0 0 1-8 0",
                 'x': "M18 6L6 18M6 6l12 12",
                 'sun': "M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10z M12 1v2 M12 21v2 M4.22 4.22l1.42 1.42 M18.36 18.36l1.42 1.42 M1 12h2 M21 12h2 M4.22 19.78l1.42-1.42 M18.36 5.64l1.42-1.42",
@@ -196,12 +193,11 @@
             const [weather, setWeather] = useState({ temp: '--', code: 0, loading: true });
             const [forecast, setForecast] = useState([]);
             const [isWeatherModalOpen, setIsWeatherModalOpen] = useState(false);
-            const [speakingId, setSpeakingId] = useState(null);
 
             const [expandedCats, setExpandedCats] = useState({
                 '一、證件與金錢': true, '二、Ruby 寶寶專區': true, '三、衣物配件': true,
                 '四、3C 數位產品': true, '五、藥品與保健': true, '六、盥洗與清潔': true,
-                '生存日語小手冊': true, '優惠卷專區': true
+                '優惠卷專區': true
             });
 
             // 🛠️ 地點資料
@@ -211,7 +207,7 @@
                 { category: '必逛商場/藥妝 🛍️', items: ['天神地下街', '唐吉訶德 中洲店', '大國藥妝', '永旺夢樂城 AEON', '博多車站阪急', '福岡 PARCO'] }
             ];
 
-            // 🛠️ 優惠卷雲端資料夾匯入
+            // 🛠️ 優惠卷雲端資料夾連結
             const couponList = [
                 { category: '1. 藥妝類 💊', items: [
                     { name: '開啟「藥妝店」優惠卷 📂', link: 'https://drive.google.com/drive/folders/15tPJsxMOt83LFnWM2rW8H7E2MjupTphA' }
@@ -222,15 +218,6 @@
                 { category: '3. 百貨公司 機場免稅店 🛫', items: [
                     { name: '開啟「百貨/機場免稅」優惠卷 📂', link: 'https://drive.google.com/drive/folders/1JEuQ0ysYEatA9yJR4H2-6KotCT7oClp1_' }
                 ]}
-            ];
-
-            const survivalPhrases = [
-                { id: 'ph1', jp: 'ありがとう', tw: '謝謝', ro: 'Arigatou' },
-                { id: 'ph2', jp: 'すみません', tw: '不好意思 / 請問', ro: 'Sumimasen' },
-                { id: 'ph3', jp: 'いくらですか？', tw: '多少錢？', ro: 'Ikura desu ka?' },
-                { id: 'ph4', jp: 'これをください', tw: '請給我這個', ro: 'Kore o kudasai' },
-                { id: 'ph5', jp: 'トイレはどこですか？', tw: '廁所在哪裡？', ro: 'Toire wa doko desu ka?' },
-                { id: 'ph6', jp: 'お会計をお願いします', tw: '請幫我結帳', ro: 'Okaikei o onegaishimasu' }
             ];
 
             const packingListTemplate = [
@@ -272,39 +259,6 @@
             }, []);
 
             useEffect(() => { fetchWeather(); }, [fetchWeather]);
-
-            const speakPhrase = async (phrase, retries = 5) => {
-                if (speakingId) return;
-                setSpeakingId(phrase.id);
-                const callTts = async (attempt) => {
-                    try {
-                        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                contents: [{ parts: [{ text: `Say in Japanese: ${phrase.jp}` }] }],
-                                generationConfig: { responseModalities: ["AUDIO"], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: "Kore" } } } },
-                                model: "gemini-2.5-flash-preview-tts"
-                            })
-                        });
-                        const result = await res.json();
-                        const audioData = result.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
-                        if (audioData) {
-                            const binary = window.atob(audioData);
-                            const len = binary.length;
-                            const bytes = new Uint8Array(len);
-                            for (let i = 0; i < len; i++) bytes[i] = binary.charCodeAt(i);
-                            const wavHeader = new ArrayBuffer(44);
-                            const view = new DataView(wavHeader);
-                            view.setUint32(0, 0x52494646, false); view.setUint32(4, 36 + len, true); view.setUint32(8, 0x57415645, false); view.setUint32(12, 0x666d7420, false); view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true); view.setUint32(24, 24000, true); view.setUint32(28, 48000, true); view.setUint16(32, 2, true); view.setUint16(34, 16, true); view.setUint32(36, 0x64617461, false); view.setUint32(40, len, true);
-                            const blob = new Blob([wavHeader, bytes], { type: 'audio/wav' });
-                            const audio = new Audio(URL.createObjectURL(blob));
-                            audio.onended = () => setSpeakingId(null); audio.play();
-                        } else throw new Error("No data");
-                    } catch (e) { if (attempt < retries) setTimeout(() => callTts(attempt + 1), 1000); else setSpeakingId(null); }
-                };
-                callTts(0);
-            };
 
             useEffect(() => {
                 const unsubscribe = auth.onAuthStateChanged(u => {
@@ -498,7 +452,7 @@
                         {/* 4. 工具分頁 */}
                         {activeTab === 'tools' && (
                             <div className="space-y-10 animate-in fade-in pb-20">
-                                {/* 優惠卷區 - 整合 Google Drive 連結 */}
+                                {/* 優惠卷區 */}
                                 <section>
                                     <div onClick={() => toggleCategory('優惠卷專區')} className="flex items-center justify-between chic-card p-6 mb-8 cursor-pointer active:bg-purple-50 transition-all shadow-md border-b-8 border-chic-orange">
                                         <div className="flex items-center gap-4">
@@ -536,16 +490,6 @@
                                 
                                 <div className="chic-card p-8 text-center border-4 border-chic-purple"><div className="w-16 h-16 bg-purple-50 rounded-full flex items-center justify-center mx-auto mb-4 text-chic-purple"><Icon name="hotel" size={32}/></div><h3 className="text-2xl font-black text-slate-800">博多西鐵 CROOM</h3><p className="text-[10px] text-slate-400 font-bold mb-8 uppercase tracking-[0.2em]">櫛田神社前站 4 號出口對面</p><div className="flex gap-4"><button onClick={() => openMap('博多祇園櫛田神社前西鐵克魯姆酒店')} className="flex-1 kuromi-gradient text-white py-5 rounded-2xl font-black text-sm shadow-md">地圖定位</button><a href="tel:092-235-0311" className="flex-1 border-4 border-slate-900 py-5 rounded-2xl font-black text-sm text-slate-900">聯絡電話</a></div></div>
                                 
-                                <section>
-                                    <div onClick={() => toggleCategory('生存日語小手冊')} className="flex items-center justify-between chic-card p-6 mb-8 cursor-pointer active:bg-purple-50 transition-all"><div className="flex items-center gap-4"><div className="p-3 bg-pink-50 rounded-2xl text-chic-pink"><Icon name="languages" size={24} /></div><p className="text-xl font-black text-slate-700">生存日語手冊</p></div><Icon name={expandedCats['生存日語小手冊'] ? "chevron-down" : "chevron-right"} size={28} className="text-slate-200" /></div>
-                                    {expandedCats['生存日語小手冊'] && (<div className="grid grid-cols-1 gap-4 px-1 animate-in fade-in">{(survivalPhrases || []).map((p, i) => (
-                                        <div key={i} className="chic-card p-5 flex justify-between items-center border border-pink-50">
-                                            <div><p className="text-[10px] font-bold text-pink-300 mb-1">{p.tw}</p><p className="text-xl font-black text-slate-700">{p.jp}</p><p className="text-xs text-slate-300 italic font-bold">[{p.ro}]</p></div>
-                                            <button onClick={() => speakPhrase(p)} className={`p-4 rounded-full transition-all active:scale-90 ${speakingId === p.id ? 'bg-pink-100 text-pink-500 shadow-inner' : 'bg-pink-50 text-chic-pink shadow-sm'}`}><Icon name={speakingId === p.id ? "refresh" : "volume"} size={20} className={speakingId === p.id ? 'animate-spin' : ''} /></button>
-                                        </div>
-                                    ))}</div>)}
-                                </section>
-
                                 <section>
                                     <div className="flex items-center gap-3 mb-6 px-1"><div className="p-3 bg-pink-100 rounded-2xl text-[#FF91C1]"><Icon name="luggage" size={24} /></div><h3 className="text-2xl font-black text-slate-800 underline decoration-pink-300">行李清單 💜</h3></div>
                                     {packingListTemplate.map((cat, idx) => {
