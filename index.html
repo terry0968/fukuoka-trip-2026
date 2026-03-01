@@ -39,7 +39,7 @@
         .kuromi-font { font-family: 'ZCOOL KuaiLe', cursive; }
         .kuromi-gradient { background: linear-gradient(135deg, #9D76C1 0%, #765898 100%); }
         
-        /* 去趣垂直時間軸導引線 */
+        /* 垂直時間軸導引線 */
         .timeline-line {
             position: absolute;
             left: 28px;
@@ -107,7 +107,7 @@
         const appId = "fukuoka-2026";
         const apiKey = ""; 
 
-        // 🛠️ 資料定義：最新的暫定行程
+        // 🛠️ 資料庫：預設暫定行程
         const DEFAULT_PLANS = {
             '5/30': [
                 { time: '14:40', title: '抵達福岡 (CI128) ✈️', type: 'fixed' },
@@ -144,7 +144,7 @@
         const Icon = ({ name, className = "", size = 24 }) => {
             const icons = {
                 'heart': "M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.505 4.04 3 5.5L12 21l7-7Z",
-                'coins': "M11 15h2M12 12V3c0-1.1.9-2 2-2h4c1.1 0 2 .9 2 2v1h1a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V6c0-1.1.9-2 2-2h1V3c0-1.1.9-2 2-2h1V3c0-1.1.9-2 2-2h4c1.1 0 2 .9 2 2v9Z",
+                'coins': "M11 15h2M12 12V3c0-1.1.9-2 2-2h4c1.1 0 2 .9 2 2v1h1a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V6c0-1.1.9-2 2-2h1V3c0-1.1.9-2 2-2h4c1.1 0 2 .9 2 2v9Z",
                 'check-circle': "M22 11.08V12a10 10 0 1 1-5.93-9.14 M22 4L12 14.01l-3-3",
                 'trash': "M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2",
                 'refresh': "M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8 M21 3v5h-5 M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16 M3 21v-5h5",
@@ -165,6 +165,7 @@
                 'plane': "M22 16.21v-1.89L14.84 9.9 14.84 4a1.5 1.5 0 0 0-3 0v5.9L4.67 14.32v1.89l7.17-2.73v5.13l-1.71 1.14v1.33l3.37-1.01 3.37 1.01v-1.33l-1.71-1.14v-5.13L22 16.21z",
                 'languages': "M5 8l6 6M4 14l6-6M2 5h12M7 2h1M22 22l-5-10-5 10M14 18h6",
                 'volume': "M11 5L6 9H2v6h4l5 4V5z M19.07 4.93a10 10 0 0 1 0 14.14 M15.54 8.46a5 5 0 0 1 0 7.07",
+                'shopping': "M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4H6zm-2 4h16M16 10a4 4 0 0 1-8 0",
                 'x': "M18 6L6 18M6 6l12 12",
                 'sun': "M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10z M12 1v2 M12 21v2 M4.22 4.22l1.42 1.42 M18.36 18.36l1.42 1.42 M1 12h2 M21 12h2 M4.22 19.78l1.42-1.42 M18.36 5.64l1.42-1.42",
                 'cloud': "M17.5 19a5.5 5.5 0 0 0 0-11 1.5 1.5 0 0 0-1.5 1.5A7 7 0 1 0 5 15.5 5.5 5.5 0 0 0 10.5 21h7",
@@ -201,14 +202,13 @@
                 '生存日語小手冊': true
             });
 
-            // 🛠️ 資料定義：補回地點清單，防止地圖分頁變白
+            // 🛠️ 地點資料匯入 (根據清單連結與熱門點)
             const mapSpotList = [
-                { category: '熱門景點 ⛩️', items: ['博多運河城', '櫛田神社', '太宰府天滿宮', '福岡城跡/大濠公園', '福岡塔', 'LaLaport 福岡 (鋼彈)', '海之中道海濱公園'] },
-                { category: '必逛商場/藥妝 🛍️', items: ['天神地下街', '唐吉訶德 中洲店', '大國藥妝', '永旺夢樂城AEON', '博多車站阪急'] },
-                { category: '家族美食 🥩', items: ['燒肉 大東園', '一蘭拉麵 總店', '博多華味鳥 (水炊鍋)', '元祖博多明太子飯', '博多牛雜鍋 おおやま', 'bills 福岡 (鬆餅)'] }
+                { category: '推薦景點 ⛩️', items: ['博多運河城', '櫛田神社', '太宰府天滿宮', '福岡城跡/大濠公園', '福岡塔', 'LaLaport 福岡 (鋼彈)', '海之中道海濱公園', 'TeamLab Forest Fukuoka'] },
+                { category: '美味餐廳 🥩', items: ['燒肉 大東園', '一蘭拉麵 總店', '博多華味鳥 (水炊鍋)', '元祖博多明太子飯', '博多牛雜鍋 おおやま', 'bills 福岡 (鬆餅)', '極味屋 博多店'] },
+                { category: '必逛購物 🛍️', items: ['天神地下街', '唐吉訶德 中洲店', '大國藥妝', '永旺夢樂城 AEON', '博多車站阪急', '福岡 PARCO'] }
             ];
 
-            // 🛠️ 資料定義：補回生存日語，防止工具分頁變白
             const survivalPhrases = [
                 { id: 'ph1', jp: 'ありがとう', tw: '謝謝', ro: 'Arigatou' },
                 { id: 'ph2', jp: 'すみません', tw: '不好意思 / 請問', ro: 'Sumimasen' },
@@ -335,7 +335,7 @@
                     const safeId = editingPlan ? editingPlan.id : `plan-${Date.now()}`;
                     await db.collection(`artifacts/${appId}/public/data/itinerary`).doc(safeId).set({ ...editPlanBuffer, targetDate: dates[selectedDayIdx].date, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
                     setIsEditingPlan(false); setEditingPlan(null); showToast("行程同步成功 💜");
-                } catch(e) { showToast("儲存失敗 💜"); } finally { setIsSaving(false); }
+                } finally { setIsSaving(false); }
             };
 
             const deletePlan = async (e, id) => {
@@ -372,7 +372,7 @@
                         <div className="absolute top-0 right-0 -mr-10 -mt-10 opacity-10"><Icon name="heart" size={200} className="text-purple-400" /></div>
                         <div className="flex justify-between items-start relative z-10">
                             <div>
-                                <h1 className="text-4xl font-black tracking-tight text-slate-800 kuromi-font">福岡 2026</h1>
+                                <h1 className="text-4xl font-black text-slate-800 kuromi-font">福岡 2026</h1>
                                 <div className="flex items-center gap-2 mt-3">
                                     <div className="flex -space-x-2">{members.map(m => (<div key={m} className="w-8 h-8 rounded-full border-2 border-white kuromi-gradient flex items-center justify-center text-[10px] text-white font-bold shadow-sm">{m[0]}</div>))}</div>
                                     <span className="text-[10px] text-slate-400 font-bold ml-2 uppercase tracking-widest">FAMILY TRIP</span>
@@ -383,10 +383,6 @@
                                 <p className="text-2xl font-black text-purple-600">{weather.temp}°C</p>
                                 <p className="text-[9px] text-purple-300 font-bold uppercase">Fukuoka</p>
                             </div>
-                        </div>
-                        <div className="mt-8 bg-slate-50 p-4 rounded-2xl flex items-center justify-between border border-slate-100">
-                             <div className="flex items-center gap-3"><div className="p-2 bg-pink-100 rounded-xl text-pink-500"><Icon name="sparkles" size={16} /></div><span className="text-sm font-bold text-slate-600">出發倒數</span></div>
-                             <span className="text-2xl font-black text-pink-400">{countdownDays} <span className="text-xs text-slate-300 font-bold">DAYS</span></span>
                         </div>
                     </header>
 
@@ -443,13 +439,13 @@
 
                         {activeTab === 'map' && (
                             <div className="space-y-8 animate-in fade-in">
-                                <h2 className="text-2xl font-black text-slate-800 italic underline decoration-chic-purple decoration-4 underline-offset-4">福岡景點地圖 📍</h2>
-                                <button onClick={() => window.open('https://maps.app.goo.gl/pd5Mgn8orC6EG7dc6', '_blank')} className="w-full bg-slate-900 text-white p-8 rounded-[40px] shadow-xl flex items-center justify-between border-4 border-white active:scale-95 transition-all">
-                                    <div className="text-left"><p className="text-2xl font-black mb-1">開啟 Google Maps</p><p className="text-[10px] font-bold opacity-40 uppercase tracking-widest">Full Location List</p></div>
+                                <h2 className="text-2xl font-black text-slate-800 italic underline decoration-chic-purple decoration-4 underline-offset-4">景點/美食地圖 📍</h2>
+                                <button onClick={() => window.open('https://maps.app.goo.gl/3yBGjjqpevzTECGB9', '_blank')} className="w-full bg-slate-900 text-white p-8 rounded-[40px] shadow-xl flex items-center justify-between border-4 border-white active:scale-95 transition-all">
+                                    <div className="text-left"><p className="text-2xl font-black mb-1">開啟 Google Maps</p><p className="text-[10px] font-bold opacity-40 uppercase tracking-widest italic tracking-tighter">My Saved List 💜</p></div>
                                     <div className="bg-chic-purple p-4 rounded-full shadow-lg"><Icon name="navigation" size={24} /></div>
                                 </button>
                                 <div className="space-y-8 pb-10">
-                                    {(mapSpotList || []).map((group, idx) => (
+                                    {mapSpotList.map((group, idx) => (
                                         <div key={idx} className="space-y-4">
                                             <h3 className="text-lg font-black text-slate-400 px-2 uppercase tracking-widest flex items-center gap-3"><div className="w-1.5 h-1.5 rounded-full bg-chic-purple"></div>{group.category}</h3>
                                             <div className="grid grid-cols-1 gap-3">{(group.items || []).map((item, i) => (<div key={i} onClick={() => openMap(item)} className="chic-card p-5 flex items-center justify-between active:scale-95 transition-all cursor-pointer"><span className="text-lg font-black text-slate-700">{item}</span><Icon name="chevron-right" size={20} className="text-slate-200" /></div>))}</div>
