@@ -17,25 +17,28 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
     
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&family=Noto+Sans+TC:wght@400;700;900&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
         
         :root {
             --chic-purple: #9D76C1;
+            --chic-purple-light: #F3F0F8;
             --chic-pink: #FF91C1;
             --chic-orange: #FFB085;
             --chic-blue: #85A5FF;
-            --chic-bg: #F8F9FA;
+            --chic-bg: #FDFCFE;
+            --chic-dark: #2D2727;
         }
 
         body { 
             font-family: 'Noto Sans TC', sans-serif;
             background-color: var(--chic-bg); 
-            color: #333;
+            color: var(--chic-dark);
             margin: 0; padding: 0;
             -webkit-tap-highlight-color: transparent;
             overflow-x: hidden;
-            background-image: radial-gradient(var(--chic-purple) 0.5px, transparent 0.5px);
-            background-size: 20px 20px;
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(157, 118, 193, 0.05) 0%, transparent 20%),
+                radial-gradient(circle at 90% 80%, rgba(255, 145, 193, 0.05) 0%, transparent 20%);
         }
 
         .kuromi-font { font-family: 'ZCOOL KuaiLe', cursive; }
@@ -43,19 +46,22 @@
         
         .chic-card { 
             background: white; 
-            border-radius: 30px; 
-            box-shadow: 0 10px 30px rgba(157, 118, 193, 0.05);
-            border: 1px solid rgba(157, 118, 193, 0.1);
+            border-radius: 32px; 
+            box-shadow: 0 12px 40px rgba(157, 118, 193, 0.08);
+            border: 1px solid rgba(157, 118, 193, 0.12);
+            transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
         }
+        .chic-card:active { transform: scale(0.97); }
 
-        /* 垂直時間軸導航線 */
+        /* 垂直時間軸導航線 - 更精緻的樣式 */
         .timeline-line {
             position: absolute;
-            left: 30px;
-            top: 40px;
-            bottom: -35px;
-            width: 3px;
-            background: repeating-linear-gradient(to bottom, #E2D9F3 0px, #E2D9F3 8px, transparent 8px, transparent 16px);
+            left: 32px;
+            top: 48px;
+            bottom: -32px;
+            width: 2px;
+            background: linear-gradient(to bottom, var(--chic-purple) 0%, #E2D9F3 50%, #E2D9F3 100%);
+            opacity: 0.5;
             z-index: 0;
         }
         .timeline-item:last-child .timeline-line { display: none; }
@@ -64,21 +70,40 @@
         .tab-active::after {
             content: '';
             position: absolute;
-            bottom: -2px; left: 25%; width: 50%; height: 5px;
+            bottom: -4px; left: 50%; width: 24px; height: 4px;
+            transform: translateX(-50%);
             background: var(--chic-purple); border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(157, 118, 193, 0.4);
+        }
+
+        .glass-nav {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
         }
 
         .modal-mask {
-            background-color: rgba(0, 0, 0, 0.4);
-            backdrop-filter: blur(12px);
+            background-color: rgba(45, 39, 39, 0.6);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
         }
 
         @keyframes floating {
             0%, 100% { transform: translateY(0px); }
-            50% { transform: translateY(-8px); }
+            50% { transform: translateY(-12px); }
         }
-        .float-anim { animation: floating 3s ease-in-out infinite; }
+        .float-anim { animation: floating 4s ease-in-out infinite; }
         .hide-scrollbar::-webkit-scrollbar { display: none; }
+
+        .btn-gradient {
+            background: linear-gradient(135deg, #9D76C1 0%, #8561A8 100%);
+            box-shadow: 0 8px 20px rgba(157, 118, 193, 0.3);
+        }
+        
+        .expense-card-dark {
+            background: linear-gradient(145deg, #2D2727 0%, #1A1616 100%);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+        }
     </style>
 </head>
 <body>
@@ -102,7 +127,7 @@
         const db = firebase.firestore();
         const appId = "fukuoka-2026";
 
-        // --- 圖標組件 (內建 SVG) ---
+        // --- 圖標組件 ---
         const Icon = ({ name, className = "", size = 24 }) => {
             const icons = {
                 'heart': "M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.505 4.04 3 5.5L12 21l7-7Z",
@@ -156,84 +181,65 @@
 
             const members = ['KCY', 'Ruby', 'YSL', 'Tsai'];
             
-            // 🛠️ 更新首頁每日標題
             const dates = [
                 { date: '5/30', dayName: 'SAT', title: '抵達日' },
                 { date: '5/31', dayName: 'SUN', title: '假日踏青' },
                 { date: '6/01', dayName: 'MON', title: '海洋探險' },
                 { date: '6/02', dayName: 'TUE', title: 'LALAPORT一日遊' },
-                { date: '6/03', dayName: 'WED', title: '歷史知性(太宰府)加天神商圈' },
-                { date: '6/04', dayName: 'THU', title: '天神商圈血拼與濃郁水炊鍋' },
-                { date: '6/05', dayName: 'FRI', title: '在地精華與烤雞皮居酒屋' },
+                { date: '6/03', dayName: 'WED', title: '歷史知性之旅' },
+                { date: '6/04', dayName: 'THU', title: '天神商圈血拼' },
+                { date: '6/05', dayName: 'FRI', title: '在地精華與美食' },
                 { date: '6/06', dayName: 'SAT', title: '滿載而歸' }
             ];
 
-            // 🛠️ 定義詳細行程內容
             const DEFAULT_PLANS = {
                 '5/30': [
                     { time: '14:40', title: '華航 CI128 出發 ✈️', type: 'fixed' },
-                    { time: '18:05', title: '抵達福岡機場 (入境 VJW QR) 🛬', type: 'fixed' },
-                    { time: '19:30', title: '飯店 Check-in (CROOM) 🏨', type: 'attraction' },
-                    { time: '20:00', title: '晚餐：川端商店街周邊 🍴', type: 'attraction' },
-                    { time: '21:00', title: '超商尋寶 & 明日備品採購 🏪', type: 'attraction' }
+                    { time: '18:05', title: '抵達福岡機場 🛬', type: 'fixed' },
+                    { time: '19:30', title: '飯店 Check-in 🏨', type: 'attraction' },
+                    { time: '20:00', title: '晚餐時間 🍴', type: 'attraction' }
                 ],
                 '5/31': [
-                    { time: '09:30', title: '悠閒早餐時間 🥐', type: 'attraction' },
-                    { time: '10:30', title: '大濠公園 (踩天鵝船/湖畔星巴克) 🌳', type: 'attraction' },
-                    { time: '12:30', title: '午餐：MARK IS 3F 美食街 🍴', type: 'attraction' },
-                    { time: '14:00', title: 'MARK IS 福岡百道購物 🛍️', type: 'attraction' },
-                    { time: '17:00', title: '福岡塔登塔 & 百道海濱夕照 🗼', type: 'attraction' },
-                    { time: '19:30', title: '晚餐：燒肉 One Karubi (中洲店) 🥩', type: 'attraction' }
+                    { time: '10:30', title: '大濠公園 🌳', type: 'attraction' },
+                    { time: '12:30', title: 'MARK IS 美食街 🍴', type: 'attraction' },
+                    { time: '17:00', title: '福岡塔登塔 🗼', type: 'attraction' },
+                    { time: '19:30', title: '燒肉 One Karubi 🥩', type: 'attraction' }
                 ],
                 '6/01': [
-                    { time: '07:45', title: '外帶麵包：Dacomecca (提早排隊) 🥐', type: 'attraction' },
-                    { time: '10:00', title: '海之中道海洋世界 (看海豚秀) 🐬', type: 'attraction' },
-                    { time: '12:30', title: '午餐：Reilly 水族館內餐點 🍴', type: 'attraction' },
-                    { time: '14:00', title: '海之中道海濱公園 (動物森林) 🌳', type: 'attraction' },
-                    { time: '19:00', title: '晚餐：博多車站拉麵一條街 🍜', type: 'attraction' }
+                    { time: '10:00', title: '海之中道海洋世界 🐬', type: 'attraction' },
+                    { time: '14:00', title: '海之中道海濱公園 🌳', type: 'attraction' },
+                    { time: '19:00', title: '博多車站拉麵 🍜', type: 'attraction' }
                 ],
                 '6/02': [
-                    { time: '08:30', title: '簡單早午餐時間 🍙', type: 'attraction' },
-                    { time: '09:30', title: 'LaLaport 福岡 (1:1 鋼彈拍攝) 🤖', type: 'attraction' },
-                    { time: '12:30', title: '午餐：LaLaport 3F 美食街 🍴', type: 'attraction' },
-                    { time: '14:00', title: '購物：阿卡將 & 超市採購 🛍️', type: 'attraction' },
-                    { time: '19:00', title: '晚餐：博多もつ鍋前田屋 (牛腸鍋) 🥘', type: 'attraction' }
+                    { time: '09:30', title: 'LaLaport 福岡 (鋼彈) 🤖', type: 'attraction' },
+                    { time: '14:00', title: '阿卡將母嬰購物 🛍️', type: 'attraction' },
+                    { time: '19:00', title: '博多牛腸鍋 🥘', type: 'attraction' }
                 ],
                 '6/03': [
-                    { time: '09:00', title: '出發太宰府 (搭乘旅人號) 🚃', type: 'attraction' },
-                    { time: '10:30', title: '太宰府天滿宮參拜 & 梅枝餅 ⛩️', type: 'attraction' },
-                    { time: '12:30', title: '午餐：太宰府參道美食探訪 🍴', type: 'attraction' },
-                    { time: '13:30', title: '九州國立博物館 & 太宰府遊樂園 🏺', type: 'attraction' },
-                    { time: '16:30', title: '前往天神商圈 🚃', type: 'attraction' },
-                    { time: '18:30', title: '晚餐：和牛まぶし 武蔵 (天神店) 🥩', type: 'attraction' }
+                    { time: '10:30', title: '太宰府天滿宮 ⛩️', type: 'attraction' },
+                    { time: '13:30', title: '九州國立博物館 🏺', type: 'attraction' },
+                    { time: '18:30', title: '和牛まぶし 🥩', type: 'attraction' }
                 ],
                 '6/04': [
-                    { time: '09:00', title: '悠閒早餐：Bake 起司塔 🧀', type: 'attraction' },
-                    { time: '10:30', title: '天神商圈/地下街血拼 (Mina/Bic) 🛍️', type: 'attraction' },
-                    { time: '13:00', title: '午餐：天神百貨餐廳層 🍴', type: 'attraction' },
-                    { time: '14:30', title: '免稅補貨 & 藥妝大採購 💄', type: 'attraction' },
-                    { time: '18:30', title: '晚餐：博多華味鳥 天神店 (水炊鍋) 🥘', type: 'attraction' }
+                    { time: '10:30', title: '天神地下街血拼 🛍️', type: 'attraction' },
+                    { time: '18:30', title: '博多華味鳥水炊鍋 🥘', type: 'attraction' }
                 ],
                 '6/05': [
-                    { time: '09:30', title: '櫛田神社 & 川端通商店街 ⛩️', type: 'attraction' },
-                    { time: '11:30', title: '午餐：大東園 本店 (燒肉定食) 🥩', type: 'attraction' },
-                    { time: '13:00', title: '麵包超人博物館 / 運河城採買 🤖', type: 'attraction' },
-                    { time: '17:00', title: '晚餐：かわ屋 (烤雞皮居酒屋) 🍻', type: 'attraction' },
-                    { time: '19:00', title: '回飯店行李大打包 🧳', type: 'attraction' }
+                    { time: '09:30', title: '櫛田神社 & 川端通 ⛩️', type: 'attraction' },
+                    { time: '11:30', title: '大東園燒肉午餐 🥩', type: 'attraction' },
+                    { time: '17:00', title: '烤雞皮居酒屋 🍻', type: 'attraction' }
                 ],
                 '6/06': [
-                    { time: '09:00', title: '退房寄放行李 🏨', type: 'attraction' },
-                    { time: '10:30', title: '博多車站：燕林廣場 & 最後伴手禮 🚂', type: 'attraction' },
-                    { time: '13:00', title: '完美收尾午餐 🍴', type: 'attraction' },
-                    { time: '15:30', title: '出發前往機場 (計程車) 🚕', type: 'fixed' },
-                    { time: '19:10', title: '華航 CI129 期待下次旅行 ✈️', type: 'fixed' }
+                    { time: '10:30', title: '博多車站伴手禮 🛒', type: 'attraction' },
+                    { time: '15:30', title: '前往機場 🚕', type: 'fixed' },
+                    { time: '19:10', title: 'CI129 返程 ✈️', type: 'fixed' }
                 ]
             };
 
             const couponList = [
-                { category: '1. 藥妝類 💊', link: 'https://drive.google.com/drive/folders/15tPJsxMOt83LFnWM2rW8H7E2MjupTphA' },
-                { category: '2. 電器 服飾 運動用品 👟', link: 'https://drive.google.com/drive/folders/1A-rowM9WMfok8cG4FhvpCc-N6bhuBcrj' },
-                { category: '3. 百貨公司 機場免稅店 🛫', link: 'https://drive.google.com/drive/folders/1JEuQ0ysYEatA9yJR4H2-6KotCT7oClp1_' }
+                { category: '藥妝優惠 💊', link: 'https://drive.google.com/drive/folders/15tPJsxMOt83LFnWM2rW8H7E2MjupTphA' },
+                { category: '電器服飾 👟', link: 'https://drive.google.com/drive/folders/1A-rowM9WMfok8cG4FhvpCc-N6bhuBcrj' },
+                { category: '百貨機場 🛫', link: 'https://drive.google.com/drive/folders/1JEuQ0ysYEatA9yJR4H2-6KotCT7oClp1_' }
             ];
 
             const countdownDays = useMemo(() => {
@@ -243,7 +249,6 @@
                 return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
             }, []);
 
-            // --- Firebase 同步邏輯 ---
             useEffect(() => {
                 const unsubAuth = auth.onAuthStateChanged(u => {
                     if (u) setUser(u);
@@ -314,66 +319,68 @@
                 setIsSaving(true);
                 try {
                     await db.collection(`artifacts/${appId}/public/data/expenses`).add({
-                        payer: 'KCY', item: '購物開銷', amount: parseFloat(fxJpy), amountTwd: Math.round(parseFloat(fxJpy) * exchangeRate), date: new Date().toISOString().split('T')[0]
+                        payer: 'KCY', item: '旅遊開銷', amount: parseFloat(fxJpy), amountTwd: Math.round(parseFloat(fxJpy) * exchangeRate), date: new Date().toISOString().split('T')[0]
                     });
                     setFxJpy(''); setFxTwd(''); showToast("記帳成功 💜");
                 } finally { setIsSaving(false); }
             };
 
-            const totalExpenseJpy = useMemo(() => expenses.reduce((sum, e) => sum + (e.amount || 0), 0), [expenses]);
-            const totalExpenseTwd = useMemo(() => Math.round(totalExpenseJpy * exchangeRate), [totalExpenseJpy]);
-
             return (
-                <div className="max-w-md mx-auto min-h-screen relative pb-24">
+                <div className="max-w-md mx-auto min-h-screen relative pb-28">
                     
-                    {/* 確認刪除彈窗 */}
+                    {/* 確認彈窗 */}
                     {isConfirmModal.show && (
                         <div className="fixed inset-0 z-[300] modal-mask flex items-center justify-center p-8">
-                            <div className="bg-white w-full rounded-[45px] p-10 text-center shadow-2xl space-y-6 animate-in zoom-in border-4 border-purple-50">
-                                <Icon name="trash" size={60} className="mx-auto text-red-400" />
-                                <h3 className="text-2xl font-black text-slate-700 leading-tight">確定要移除計畫嗎？</h3>
+                            <div className="bg-white/95 w-full rounded-[48px] p-10 text-center shadow-2xl space-y-6 animate-in zoom-in border border-white/20">
+                                <Icon name="trash" size={64} className="mx-auto text-red-400 opacity-80" />
+                                <h3 className="text-2xl font-bold text-slate-800 leading-tight">確定要移除<br/>這項計畫嗎？</h3>
                                 <div className="flex gap-4">
-                                    <button onClick={executeDelete} className="flex-1 bg-red-500 text-white py-4 rounded-2xl font-black shadow-lg">確定刪除</button>
-                                    <button onClick={() => setIsConfirmModal({show:false, id:null})} className="flex-1 bg-slate-100 text-slate-400 py-4 rounded-2xl font-black">先不要</button>
+                                    <button onClick={executeDelete} className="flex-1 bg-red-500 text-white py-5 rounded-[24px] font-bold shadow-lg active:scale-95 transition-all">確定</button>
+                                    <button onClick={() => setIsConfirmModal({show:false, id:null})} className="flex-1 bg-slate-100 text-slate-400 py-5 rounded-[24px] font-bold active:scale-95 transition-all">取消</button>
                                 </div>
                             </div>
                         </div>
                     )}
 
                     {/* Toast */}
-                    <div className={`fixed top-8 left-1/2 -translate-x-1/2 z-[200] transition-all duration-500 ${toast.show ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-10 pointer-events-none'}`}>
-                        <div className="bg-black/90 text-white px-8 py-4 rounded-full flex items-center gap-3 shadow-2xl border border-purple-400 backdrop-blur-md">
-                            <Icon name="heart" size={18} className="text-pink-400" />
-                            <span className="font-bold tracking-tight">{toast.msg}</span>
+                    <div className={`fixed top-10 left-1/2 -translate-x-1/2 z-[200] transition-all duration-500 ${toast.show ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-12 pointer-events-none'}`}>
+                        <div className="bg-white/90 text-slate-800 px-8 py-4 rounded-full flex items-center gap-3 shadow-2xl border border-purple-100 backdrop-blur-md">
+                            <Icon name="heart" size={20} className="text-pink-400 fill-pink-400" />
+                            <span className="font-bold tracking-tight text-lg">{toast.msg}</span>
                         </div>
                     </div>
 
-                    <header className="bg-white px-6 pt-14 pb-8 rounded-b-[50px] shadow-sm relative overflow-hidden">
-                        <div className="absolute top-0 right-0 -mr-12 -mt-12 opacity-10 rotate-12"><Icon name="heart" size={200} className="text-purple-400" /></div>
+                    <header className="bg-white/80 backdrop-blur-xl px-8 pt-16 pb-10 rounded-b-[60px] shadow-sm relative overflow-hidden border-b border-purple-50">
+                        <div className="absolute -top-10 -right-10 opacity-[0.03] rotate-12"><Icon name="heart" size={300} className="text-purple-600" /></div>
                         <div className="flex justify-between items-start relative z-10">
-                            <div>
-                                <h1 className="text-4xl font-black text-slate-800 kuromi-font tracking-tight">福岡 2026</h1>
-                                <div className="flex items-center gap-3 mt-3">
-                                    <div className="flex -space-x-2">{members.map(m => (<div key={m} className="w-8 h-8 rounded-full border-2 border-white kuromi-gradient flex items-center justify-center text-[9px] text-white font-black shadow-sm">{m[0]}</div>))}</div>
-                                    <span className="text-[10px] text-slate-300 font-bold uppercase tracking-widest italic">SHEN FAMILY TRIP</span>
+                            <div className="space-y-1">
+                                <h1 className="text-5xl font-black text-slate-800 kuromi-font tracking-tighter mb-2">福岡 2026</h1>
+                                <div className="flex items-center gap-3">
+                                    <div className="flex -space-x-3">
+                                        {members.map(m => (<div key={m} className="w-10 h-10 rounded-full border-2 border-white kuromi-gradient flex items-center justify-center text-[10px] text-white font-black shadow-sm">{m[0]}</div>))}
+                                    </div>
+                                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] italic">Adventure</span>
                                 </div>
                             </div>
-                            <div onClick={() => setIsWeatherModalOpen(true)} className="bg-purple-50 p-4 rounded-3xl text-center min-w-[100px] border border-purple-100 float-anim cursor-pointer active:scale-90 transition-all shadow-sm">
-                                <Icon name={weather.loading ? 'refresh' : 'cloud-sun'} size={32} className={`mx-auto mb-1 ${weather.loading ? 'animate-spin' : 'text-purple-400'}`} />
-                                <p className="text-2xl font-black text-purple-600">{weather.temp}°C</p>
-                                <p className="text-[9px] text-purple-300 font-bold uppercase">Fukuoka</p>
+                            <div onClick={() => setIsWeatherModalOpen(true)} className="bg-white p-5 rounded-[36px] text-center min-w-[110px] border border-purple-100 shadow-sm float-anim cursor-pointer active:scale-90 transition-all">
+                                <Icon name={weather.loading ? 'refresh' : 'cloud-sun'} size={36} className={`mx-auto mb-1 ${weather.loading ? 'animate-spin' : 'text-purple-400'}`} />
+                                <p className="text-3xl font-black text-purple-600 leading-none mb-1">{weather.temp}°</p>
+                                <p className="text-[9px] text-purple-300 font-bold uppercase tracking-widest">Fukuoka</p>
                             </div>
                         </div>
-                        <div className="mt-8 bg-slate-50 p-5 rounded-3xl flex items-center justify-between border border-slate-100">
-                             <div className="flex items-center gap-3"><Icon name="sparkles" size={16} className="text-pink-400" /><span className="text-sm font-bold text-slate-600">冒險倒數</span></div>
-                             <span className="text-2xl font-black text-pink-400">{countdownDays} <span className="text-xs text-slate-300 font-bold uppercase">Days</span></span>
+                        <div className="mt-10 bg-purple-50/50 p-6 rounded-[32px] flex items-center justify-between border border-purple-100 shadow-inner">
+                             <div className="flex items-center gap-4"><Icon name="sparkles" size={24} className="text-pink-400" /><span className="text-base font-bold text-slate-600">冒險倒數</span></div>
+                             <div className="text-right">
+                                <span className="text-4xl font-black text-pink-400 tracking-tighter">{countdownDays}</span>
+                                <span className="text-[10px] text-slate-300 font-black uppercase ml-1">Days left</span>
+                             </div>
                         </div>
                     </header>
 
-                    <nav className="flex bg-white/90 backdrop-blur-md sticky top-0 z-50 px-4 py-2 border-b border-slate-100 mb-6 shadow-sm overflow-x-auto hide-scrollbar">
+                    <nav className="flex glass-nav sticky top-0 z-50 px-4 py-3 mb-8 shadow-sm overflow-x-auto hide-scrollbar border-b border-purple-50/50">
                         {['itinerary', 'map', 'expense', 'tools'].map(t => (
-                            <button key={t} onClick={() => { setActiveTab(t); setItineraryView('list'); }} className={`flex-1 min-w-[80px] py-5 font-black transition-all ${activeTab === t ? 'tab-active' : 'text-slate-300'}`}>
-                                {t === 'itinerary' ? '行程' : t === 'map' ? '地圖' : t === 'expense' ? '記帳' : '工具'}
+                            <button key={t} onClick={() => { setActiveTab(t); setItineraryView('list'); }} className={`flex-1 min-w-[90px] py-4 font-bold transition-all duration-300 text-base ${activeTab === t ? 'tab-active' : 'text-slate-300 hover:text-slate-400'}`}>
+                                {t === 'itinerary' ? '計畫' : t === 'map' ? '地點' : t === 'expense' ? '記帳' : '更多'}
                             </button>
                         ))}
                     </nav>
@@ -382,102 +389,127 @@
                         {/* 1. 行程分頁 */}
                         {activeTab === 'itinerary' && (
                             itineraryView === 'list' ? (
-                                <div className="space-y-6 animate-in fade-in">
-                                    <h2 className="text-2xl font-black text-slate-800 italic underline decoration-chic-purple decoration-4 underline-offset-4">行程總覽 🗺️</h2>
-                                    <div className="grid grid-cols-1 gap-4">
+                                <div className="space-y-8 animate-in fade-in duration-500">
+                                    <h2 className="text-3xl font-black text-slate-800 italic flex items-center gap-3"><span className="w-2 h-8 kuromi-gradient rounded-full"></span>冒險地圖 🗺️</h2>
+                                    <div className="grid grid-cols-1 gap-5">
                                         {dates.map((day, idx) => (
-                                            <div key={day.date} onClick={() => { setSelectedDayIdx(idx); setItineraryView('detail'); }} className="chic-card p-6 flex items-center gap-6 active:bg-purple-50 transition-all cursor-pointer group">
-                                                <div className="w-16 h-16 rounded-3xl kuromi-gradient flex flex-col items-center justify-center text-white shadow-lg group-active:scale-90 transition-transform">
-                                                    <span className="text-[10px] font-bold opacity-60 uppercase">{day.dayName}</span>
-                                                    <span className="text-3xl font-black">{day.date.split('/')[1]}</span>
+                                            <div key={day.date} onClick={() => { setSelectedDayIdx(idx); setItineraryView('detail'); }} className="chic-card p-6 flex items-center gap-6 group">
+                                                <div className="w-20 h-20 rounded-[35px] kuromi-gradient flex flex-col items-center justify-center text-white shadow-xl group-active:scale-90 transition-transform">
+                                                    <span className="text-[11px] font-bold opacity-70 uppercase mb-0.5">{day.dayName}</span>
+                                                    <span className="text-4xl font-black">{day.date.split('/')[1]}</span>
                                                 </div>
-                                                <div className="flex-1">
-                                                    <p className="text-xs font-bold text-slate-300 mb-1">DATE: {day.date}</p>
-                                                    {/* 🛠️ 顯示自定義的每日標題 */}
-                                                    <p className="text-xl font-black text-slate-700 leading-tight">{day.title}</p>
+                                                <div className="flex-1 space-y-1">
+                                                    <p className="text-[10px] font-black text-purple-300 uppercase tracking-widest">DATE: {day.date}</p>
+                                                    <p className="text-2xl font-black text-slate-700 leading-tight">{day.title}</p>
                                                 </div>
-                                                <Icon name="chevron-right" size={24} className="text-slate-200" />
+                                                <Icon name="chevron-right" size={28} className="text-slate-200" />
                                             </div>
                                         ))}
                                     </div>
                                 </div>
                             ) : (
-                                <div className="space-y-8 animate-in slide-in-from-bottom">
-                                    <div className="flex items-center gap-4"><button onClick={() => setItineraryView('list')} className="p-4 bg-white rounded-full shadow-md text-slate-400 active:scale-75 transition-all"><Icon name="chevron-left" size={24} /></button><div><h2 className="text-3xl font-black text-slate-800 tracking-tighter">{dates[selectedDayIdx].date}</h2><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest tracking-tighter">PLAN DETAILS</p></div></div>
-                                    <div className="relative pl-10 space-y-12">
+                                <div className="space-y-8 animate-in slide-in-from-bottom duration-500">
+                                    <div className="flex items-center gap-5">
+                                        <button onClick={() => setItineraryView('list')} className="p-5 bg-white rounded-full shadow-lg text-slate-400 active:scale-75 transition-all border border-slate-50"><Icon name="chevron-left" size={32} /></button>
+                                        <div>
+                                            <h2 className="text-4xl font-black text-slate-800 tracking-tighter">{dates[selectedDayIdx].date}</h2>
+                                            <p className="text-[11px] font-black text-purple-300 uppercase tracking-[0.3em]">{dates[selectedDayIdx].title}</p>
+                                        </div>
+                                    </div>
+                                    <div className="relative pl-12 space-y-14">
                                         {currentDayPlans.map((plan, i) => (
                                             <div key={plan.id} className="timeline-item relative">
                                                 <div className="timeline-line"></div>
-                                                <div className={`absolute -left-[48px] top-2 w-10 h-10 rounded-full border-4 border-white shadow-md z-10 flex items-center justify-center ${plan.isStatic || plan.type==='fixed' ? 'bg-pink-400' : 'bg-indigo-400'}`}>
-                                                    <Icon name={plan.type==='fixed' ? 'plane' : 'heart'} size={16} className="text-white" />
+                                                <div className={`absolute -left-[56px] top-2 w-12 h-12 rounded-full border-4 border-white shadow-lg z-10 flex items-center justify-center ${plan.isStatic || plan.type==='fixed' ? 'bg-pink-400' : 'bg-[#9D76C1]'} shadow-purple-100`}>
+                                                    <Icon name={plan.type==='fixed' ? 'plane' : 'heart'} size={20} className="text-white fill-white/20" />
                                                 </div>
-                                                <div className="chic-card p-6 border-l-8" style={{ borderLeftColor: plan.isStatic||plan.type==='fixed' ? '#FF91C1' : '#85A5FF' }}>
-                                                    <div className="flex justify-between items-start mb-2">
-                                                        <span className="text-sm font-black text-slate-400">{plan.time}</span>
-                                                        <div className="flex gap-3">
-                                                            <button onClick={(e) => { e.stopPropagation(); setEditingPlan(plan); setEditPlanBuffer({time:plan.time, title:plan.title, type:plan.type}); setIsEditingPlan(true); }} className="text-slate-200 hover:text-purple-400 active:scale-75 transition-all"><Icon name="pencil" size={16}/></button>
-                                                            {!plan.isStatic && <button onClick={(e) => confirmDelete(e, plan.id)} className="text-slate-200 hover:text-red-400 active:scale-75 transition-all"><Icon name="trash" size={16}/></button>}
+                                                <div className="chic-card p-8 border-l-[12px]" style={{ borderLeftColor: plan.isStatic||plan.type==='fixed' ? '#FF91C1' : '#9D76C1' }}>
+                                                    <div className="flex justify-between items-start mb-3">
+                                                        <span className="text-base font-bold text-slate-300 tracking-widest">{plan.time}</span>
+                                                        <div className="flex gap-4">
+                                                            <button onClick={(e) => { e.stopPropagation(); setEditingPlan(plan); setEditPlanBuffer({time:plan.time, title:plan.title, type:plan.type}); setIsEditingPlan(true); }} className="text-slate-200 hover:text-purple-400 active:scale-75 transition-all"><Icon name="pencil" size={20}/></button>
+                                                            {!plan.isStatic && <button onClick={(e) => { e.stopPropagation(); setIsConfirmModal({show:true, id:plan.id}); }} className="text-slate-200 hover:text-red-400 active:scale-75 transition-all"><Icon name="trash" size={20}/></button>}
                                                         </div>
                                                     </div>
-                                                    <h3 className="text-xl font-black text-slate-700 leading-tight mb-4">{plan.title}</h3>
+                                                    <h3 className="text-3xl font-black text-slate-700 leading-tight mb-6">{plan.title}</h3>
+                                                    <button onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(plan.title)}`, '_blank')} className="flex items-center gap-2 font-bold text-purple-500 bg-purple-50 px-5 py-2.5 rounded-2xl active:scale-95 transition-all border border-purple-100"><Icon name="navigation" size={18}/> 查看位置</button>
                                                 </div>
                                             </div>
                                         ))}
                                     </div>
-                                    <button onClick={() => { setEditingPlan(null); setEditPlanBuffer({time:'', title:'', type: 'attraction'}); setIsEditingPlan(true); }} className="w-full bg-white border-2 border-dashed border-slate-200 text-slate-400 py-8 rounded-[40px] flex items-center justify-center gap-3 active:bg-slate-50 transition-all font-black text-xl"><Icon name="plus" size={24} /> 新增行程點</button>
+                                    <button onClick={() => { setEditingPlan(null); setEditPlanBuffer({time:'', title:'', type: 'attraction'}); setIsEditingPlan(true); }} className="w-full bg-white border-4 border-dashed border-purple-100 text-purple-300 py-10 rounded-[40px] flex items-center justify-center gap-4 active:bg-purple-50 transition-all font-black text-3xl shadow-sm"><Icon name="plus" size={32} /> 新增計畫</button>
                                 </div>
                             )
                         )}
 
                         {/* 2. 地圖分頁 */}
                         {activeTab === 'map' && (
-                            <div className="space-y-8 animate-in fade-in">
-                                <h2 className="text-2xl font-black text-slate-800 italic underline decoration-chic-purple decoration-4 underline-offset-4">福岡景點地圖 📍</h2>
-                                <button onClick={() => window.open('https://maps.app.goo.gl/3yBGjjqpevzTECGB9', '_blank')} className="w-full bg-slate-900 text-white p-10 rounded-[45px] shadow-2xl flex items-center justify-between border-4 border-white active:scale-95 transition-all">
-                                    <div className="text-left"><p className="text-3xl font-black mb-1 text-white">開啟 Google Map</p><p className="text-[11px] font-bold opacity-40 uppercase tracking-widest text-white italic tracking-tighter">Open My Saved List 💜</p></div>
-                                    <div className="bg-chic-purple p-4 rounded-full shadow-lg"><Icon name="navigation" size={24} className="text-white" /></div>
+                            <div className="space-y-10 animate-in fade-in duration-500">
+                                <h2 className="text-3xl font-black text-slate-800 italic flex items-center gap-3"><span className="w-2 h-8 kuromi-gradient rounded-full"></span>全家收藏 📍</h2>
+                                <button onClick={() => window.open('https://maps.app.goo.gl/3yBGjjqpevzTECGB9', '_blank')} className="w-full bg-[#2D2727] text-white p-12 rounded-[50px] shadow-2xl flex items-center justify-between border-4 border-white/10 active:scale-95 transition-all group">
+                                    <div className="text-left space-y-2">
+                                        <p className="text-4xl font-black text-white group-hover:text-pink-300 transition-colors">開啟地圖</p>
+                                        <p className="text-[11px] font-bold opacity-40 uppercase tracking-[0.3em] text-white italic">Fukuoka Saved List 💜</p>
+                                    </div>
+                                    <div className="bg-chic-purple p-6 rounded-full shadow-lg shadow-purple-500/30"><Icon name="navigation" size={36} className="text-white" /></div>
                                 </button>
-                                <div className="bg-purple-50/50 p-12 rounded-[50px] border-2 border-dashed border-purple-200 italic font-bold text-purple-400 text-center text-lg leading-relaxed shadow-inner">
-                                    點擊上方按鈕<br/>直接查看我幫大家<br/>整理好的福岡熱點清單 💜
+                                <div className="bg-white p-12 rounded-[50px] border-4 border-purple-50 italic font-bold text-purple-300 text-xl text-center leading-relaxed shadow-sm">
+                                    點擊上方按鈕<br/>查看我幫全家人<br/>整理好的福岡熱點 💜
                                 </div>
                             </div>
                         )}
 
                         {/* 3. 記帳分頁 */}
                         {activeTab === 'expense' && (
-                            <div className="space-y-8 animate-in fade-in">
+                            <div className="space-y-8 animate-in fade-in duration-500">
                                 {/* 支出統計卡片 */}
-                                <div className="bg-[#2D2727] text-white p-10 rounded-[50px] shadow-2xl space-y-6 relative overflow-hidden">
-                                    <div className="absolute top-0 right-0 p-10 opacity-10 rotate-12"><Icon name="coins" size={180}/></div>
-                                    <p className="text-[11px] font-black uppercase tracking-[0.3em] text-[#FF91C1]">總花費統計 (JPY)</p>
-                                    <div className="relative z-10">
-                                        <p className="text-6xl font-black tracking-tighter mb-1">¥{totalExpenseJpy.toLocaleString()}</p>
-                                        <p className="text-xl font-bold text-[#FF91C1] opacity-90">≈ NT$ {totalExpenseTwd.toLocaleString()}</p>
+                                <div className="expense-card-dark text-white p-12 rounded-[60px] shadow-2xl space-y-8 relative overflow-hidden">
+                                    <div className="absolute top-0 right-0 p-10 opacity-[0.05] rotate-12 scale-150"><Icon name="coins" size={200}/></div>
+                                    <div className="space-y-1 relative z-10">
+                                        <p className="text-[11px] font-black uppercase tracking-[0.4em] text-pink-400">總支出統計</p>
+                                        <p className="text-7xl font-black tracking-tighter mb-1">¥{totalExpenseJpy.toLocaleString()}</p>
+                                        <p className="text-2xl font-bold text-pink-300 opacity-80">≈ NT$ {totalExpenseTwd.toLocaleString()}</p>
                                     </div>
-                                    <div className="grid grid-cols-2 gap-4 pt-6 border-t border-white/10">
+                                    <div className="grid grid-cols-2 gap-8 pt-8 border-t border-white/5 relative z-10">
                                         {members.map(m => {
                                             const pTotal = expenses.filter(e => e.payer === m).reduce((s, e) => s + (e.amount || 0), 0);
                                             return (
-                                                <div key={m} className="flex flex-col"><span className="text-[9px] font-bold text-slate-500 uppercase">{m} 支付</span><span className="font-bold text-sm">¥{pTotal.toLocaleString()}</span></div>
+                                                <div key={m} className="space-y-1"><span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{m} 支付</span><p className="text-xl font-black text-slate-100">¥{pTotal.toLocaleString()}</p></div>
                                             );
                                         })}
                                     </div>
                                 </div>
 
-                                <div className="bg-white rounded-[45px] p-8 space-y-6 shadow-xl border-4 border-purple-50">
-                                    <h3 className="text-xl font-black underline decoration-pink-300 decoration-4">快速記帳與換算 🍴</h3>
-                                    <div className="space-y-4 relative z-10">
-                                        <div className="flex items-center gap-4 border-b border-slate-100 pb-3"><span className="text-3xl font-black opacity-20 w-8 text-center">¥</span><input type="number" value={fxJpy} onChange={(e) => { setFxJpy(e.target.value); setFxTwd(e.target.value ? Math.round(e.target.value * exchangeRate) : ''); }} placeholder="0" className="flex-1 bg-transparent text-5xl font-black focus:outline-none placeholder:text-slate-100" /></div>
-                                        <div className="flex items-center gap-4 pt-2"><span className="text-3xl font-black text-pink-300 w-8 text-center">$</span><input type="number" value={fxTwd} onChange={(e) => { setFxTwd(e.target.value); setFxJpy(e.target.value ? Math.round(e.target.value / exchangeRate) : ''); }} placeholder="0" className="flex-1 bg-transparent text-5xl font-black text-pink-300 focus:outline-none placeholder:text-pink-100" /></div>
+                                <div className="bg-white rounded-[50px] p-10 space-y-10 shadow-xl border-4 border-purple-50 relative overflow-hidden">
+                                    <div className="absolute -top-10 -left-10 w-40 h-40 bg-purple-50/50 rounded-full blur-3xl"></div>
+                                    <h3 className="text-2xl font-black text-slate-800 flex items-center gap-3 relative z-10"><Icon name="wallet" className="text-pink-400" />快速記帳</h3>
+                                    <div className="space-y-8 relative z-10">
+                                        <div className="flex items-center gap-5 border-b-4 border-slate-50 pb-5 focus-within:border-purple-200 transition-colors">
+                                            <span className="text-4xl font-black opacity-20 w-12 text-center text-purple-900">¥</span>
+                                            <input type="number" value={fxJpy} onChange={(e) => { setFxJpy(e.target.value); setFxTwd(e.target.value ? Math.round(e.target.value * exchangeRate) : ''); }} placeholder="0" className="flex-1 bg-transparent text-6xl font-black focus:outline-none placeholder:text-slate-100 tracking-tighter" />
+                                        </div>
+                                        <div className="flex items-center gap-5 pt-3">
+                                            <span className="text-4xl font-black text-pink-300 w-12 text-center">$</span>
+                                            <input type="number" value={fxTwd} onChange={(e) => { setFxTwd(e.target.value); setFxJpy(e.target.value ? Math.round(e.target.value / exchangeRate) : ''); }} placeholder="0" className="flex-1 bg-transparent text-6xl font-black text-pink-300 focus:outline-none placeholder:text-pink-50 tracking-tighter" />
+                                        </div>
                                     </div>
-                                    <button onClick={addExpense} disabled={isSaving || !fxJpy} className="w-full kuromi-gradient text-white py-5 rounded-[35px] font-black text-xl shadow-lg active:scale-95 disabled:opacity-50">同步至雲端明細 💜</button>
+                                    <button onClick={addExpense} disabled={isSaving || !fxJpy} className="w-full btn-gradient text-white py-6 rounded-[35px] font-black text-2xl shadow-xl active:scale-95 disabled:opacity-30 relative z-10">同步至雲端帳單 💜</button>
                                 </div>
 
-                                <div className="space-y-4 pb-12">
+                                <div className="space-y-5 pb-16">
                                     {expenses.map(ex => (
-                                        <div key={ex.id} className="chic-card p-6 flex justify-between items-center border-l-[14px] border-chic-purple transition-all active:scale-95 shadow-sm">
-                                            <div className="flex-1 mr-4"><div className="flex items-center gap-3 mb-1.5"><span className="text-[10px] font-black text-white bg-slate-800 px-3 py-1 rounded-lg uppercase tracking-wider">{ex.payer}</span><span className="text-[10px] text-slate-300 font-bold tracking-tighter">{ex.date}</span></div><p className="text-xl font-black text-slate-700">{ex.item}</p></div>
-                                            <div className="text-right flex items-center gap-4"><div><p className="text-2xl font-black text-slate-800 mb-0.5">¥{ex.amount?.toLocaleString()}</p><p className="text-[10px] font-black text-pink-400">NT$ {ex.amountTwd?.toLocaleString()}</p></div><button onClick={() => db.collection(`artifacts/${appId}/public/data/expenses`).doc(ex.id).delete()} className="p-2 text-slate-200 hover:text-red-400 active:scale-75 transition-all"><Icon name="trash" size={18}/></button></div>
+                                        <div key={ex.id} className="chic-card p-7 flex justify-between items-center border-l-[16px] border-chic-purple transition-all active:scale-95 shadow-sm">
+                                            <div className="flex-1 mr-4 space-y-1">
+                                                <div className="flex items-center gap-3 mb-2"><span className="text-[10px] font-black text-white bg-slate-800 px-3 py-1 rounded-lg uppercase tracking-wider">{ex.payer}</span><span className="text-[10px] text-slate-300 font-bold tracking-widest">{ex.date}</span></div>
+                                                <p className="text-2xl font-black text-slate-700 leading-tight">{ex.item}</p>
+                                            </div>
+                                            <div className="text-right flex items-center gap-6">
+                                                <div className="space-y-0.5">
+                                                    <p className="text-3xl font-black text-slate-800 leading-none">¥{ex.amount?.toLocaleString()}</p>
+                                                    <p className="text-[11px] font-black text-pink-400 uppercase tracking-tighter">NT$ {ex.amountTwd?.toLocaleString()}</p>
+                                                </div>
+                                                <button onClick={() => db.collection(`artifacts/${appId}/public/data/expenses`).doc(ex.id).delete()} className="p-3 bg-red-50 text-red-400 rounded-full active:scale-75 transition-all"><Icon name="trash" size={24}/></button>
+                                            </div>
                                         </div>
                                     ))}
                                 </div>
@@ -486,55 +518,52 @@
 
                         {/* 4. 工具分頁 */}
                         {activeTab === 'tools' && (
-                            <div className="space-y-12 animate-in fade-in pb-24">
-                                {/* 優惠卷區 */}
+                            <div className="space-y-12 animate-in fade-in pb-28">
                                 <section>
-                                    <div className="flex items-center gap-4 chic-card p-7 mb-10 border-b-[12px] border-chic-orange shadow-xl">
-                                        <Icon name="ticket" size={32} className="text-chic-orange" />
-                                        <p className="text-xl font-black text-slate-700">優惠卷專區 📂</p>
+                                    <div className="flex items-center gap-5 chic-card p-10 mb-10 border-b-[15px] border-chic-orange shadow-2xl relative overflow-hidden">
+                                        <div className="absolute right-0 top-0 opacity-5 rotate-45 scale-150"><Icon name="ticket" size={150} /></div>
+                                        <div className="p-5 bg-orange-100 rounded-[30px] text-chic-orange shadow-inner"><Icon name="ticket" size={48} /></div>
+                                        <p className="text-3xl font-black text-slate-800 tracking-tighter">優惠專區 📂</p>
                                     </div>
-                                    <div className="space-y-4">
+                                    <div className="space-y-6">
                                         {couponList.map((c, i) => (
-                                            <div key={i} onClick={() => window.open(c.link, '_blank')} className="chic-card p-6 flex items-center justify-between active:bg-orange-50 cursor-pointer group transition-all">
-                                                <div className="flex items-center gap-4"><Icon name="folder" size={24} className="text-orange-200 group-hover:text-orange-400 transition-colors" /><span className="font-bold text-lg text-slate-600 tracking-tight">{c.category}</span></div>
-                                                <Icon name="chevron-right" size={24} className="text-slate-200" />
+                                            <div key={i} onClick={() => window.open(c.link, '_blank')} className="chic-card p-8 flex items-center justify-between active:bg-orange-50 cursor-pointer group transition-all">
+                                                <div className="flex items-center gap-6"><Icon name="folder" size={32} className="text-orange-200 group-hover:text-orange-400 transition-colors" /><span className="font-bold text-2xl text-slate-600 tracking-tight">{c.category}</span></div>
+                                                <Icon name="chevron-right" size={32} className="text-slate-200" />
                                             </div>
                                         ))}
                                     </div>
                                 </section>
 
-                                {/* 飯店與地圖 */}
-                                <div className="chic-card p-10 border-[6px] border-purple-100 text-center relative overflow-hidden bg-white shadow-xl">
-                                    <Icon name="hotel" size={40} className="text-purple-200 mx-auto mb-2" />
-                                    <h3 className="text-3xl font-black text-slate-800 mb-1 leading-tight tracking-tighter">博多西鐵 CROOM 🏨</h3>
-                                    <p className="text-[10px] text-slate-400 font-black mb-8 uppercase tracking-[0.2em]">博多祇園櫛田神社前</p>
-                                    <div className="flex gap-4"><button onClick={() => window.open('https://maps.app.goo.gl/hotel','_blank')} className="flex-1 kuromi-gradient text-white py-5 rounded-[30px] font-black text-sm shadow-md active:scale-95 transition-all text-white">地圖定位</button><a href="tel:092-235-0311" className="flex-1 border-4 border-slate-900 py-5 rounded-[30px] font-black text-lg text-slate-900 flex items-center justify-center active:scale-95 transition-all">撥打電話</a></div>
+                                <div className="chic-card p-12 border-[8px] border-purple-50 text-center relative overflow-hidden bg-white shadow-2xl">
+                                    <Icon name="hotel" size={60} className="text-purple-100 mx-auto mb-6" />
+                                    <h3 className="text-3xl font-black text-slate-800 mb-2 leading-tight tracking-tighter">博多西鐵 CROOM 🏨</h3>
+                                    <p className="text-[11px] text-slate-400 font-black mb-12 uppercase tracking-[0.4em]">博多祇園櫛田神社前站</p>
+                                    <div className="flex gap-6"><button onClick={() => window.open('https://maps.app.goo.gl/hotel','_blank')} className="flex-1 btn-gradient text-white py-6 rounded-[35px] font-black text-xl shadow-xl active:scale-95 transition-all text-white">地圖導航</button><a href="tel:092-235-0311" className="flex-1 border-4 border-slate-900 py-6 rounded-[35px] font-black text-xl text-slate-900 flex items-center justify-center active:scale-95 transition-all">撥打電話</a></div>
                                 </div>
 
-                                {/* 快速入口 */}
                                 <section>
-                                    <div className="flex items-center gap-3 mb-6 px-1"><Icon name="luggage" size={24} className="text-purple-400" /><h3 className="text-2xl font-black text-slate-800 underline decoration-pink-300 decoration-4 underline-offset-4 tracking-tighter">快速資源 💜</h3></div>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <button onClick={() => window.open('https://vjw-lp.digital.go.jp/','_blank')} className="chic-card p-6 flex flex-col items-center justify-center gap-2 active:scale-95 transition-all shadow-sm">
-                                            <div className="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center text-blue-400"><Icon name="refresh" size={24}/></div>
-                                            <span className="font-bold text-sm text-slate-500 uppercase tracking-tighter">Visit Japan</span>
+                                    <div className="flex items-center gap-4 mb-10 px-2 italic underline decoration-pink-100 decoration-8 underline-offset-[-4px]"><Icon name="luggage" size={32} className="text-purple-400" /><h3 className="text-3xl font-black text-slate-800 tracking-tighter">快速資源入口 💜</h3></div>
+                                    <div className="grid grid-cols-2 gap-8 px-1">
+                                        <button onClick={() => window.open('https://vjw-lp.digital.go.jp/','_blank')} className="chic-card p-10 flex flex-col items-center justify-center gap-5 active:scale-95 transition-all shadow-xl border-b-[12px] border-blue-400">
+                                            <div className="w-18 h-18 bg-blue-50 rounded-full flex items-center justify-center text-blue-400 shadow-inner"><Icon name="refresh" size={36}/></div>
+                                            <span className="font-black text-base text-slate-500 uppercase tracking-widest">VJW 入境</span>
                                         </button>
-                                        <button onClick={() => window.open('https://photos.google.com','_blank')} className="chic-card p-6 flex flex-col items-center justify-center gap-2 active:scale-95 transition-all shadow-sm">
-                                            <div className="w-12 h-12 bg-pink-100 rounded-full flex items-center justify-center text-pink-400"><Icon name="image" size={24}/></div>
-                                            <span className="font-bold text-sm text-slate-500 uppercase tracking-tighter">Family Album</span>
+                                        <button onClick={() => window.open('https://photos.google.com','_blank')} className="chic-card p-10 flex flex-col items-center justify-center gap-5 active:scale-95 transition-all shadow-xl border-b-[12px] border-pink-400">
+                                            <div className="w-18 h-18 bg-pink-50 rounded-full flex items-center justify-center text-pink-400 shadow-inner"><Icon name="image" size={36}/></div>
+                                            <span className="font-black text-base text-slate-500 uppercase tracking-widest">共享相簿</span>
                                         </button>
                                     </div>
                                 </section>
 
-                                {/* 行理檢查表 */}
-                                <section className="space-y-4 pb-10">
-                                    <h3 className="text-xl font-black text-slate-800 flex items-center gap-3 px-2 italic underline decoration-purple-100 decoration-8 underline-offset-[-2px]">行李檢查清單 💼</h3>
+                                <section className="space-y-6 pb-20">
+                                    <h3 className="text-2xl font-black text-slate-800 px-2 italic">行李檢查清單 💼</h3>
                                     {['護照/身分證/VJW QR碼', '日幣/信用卡/保險單', '換洗衣物/好走的鞋', '相機/行動電源/充電線', 'Ruby 藥品/尿布/副食品'].map(item => (
-                                        <div key={item} onClick={() => setPackingItems(prev => ({...prev, [item]: !prev[item]}))} className={`chic-card p-5 flex items-center gap-5 transition-all active:scale-95 cursor-pointer shadow-sm ${packingItems[item] ? 'opacity-40 grayscale bg-slate-50' : ''}`}>
-                                            <div className={`w-8 h-8 rounded-xl border-4 flex items-center justify-center transition-all ${packingItems[item] ? 'bg-purple-400 border-transparent' : 'border-purple-50'}`}>
-                                                {packingItems[item] && <Icon name="check" className="text-white" size={18} />}
+                                        <div key={item} onClick={() => setPackingItems(prev => ({...prev, [item]: !prev[item]}))} className={`chic-card p-7 flex items-center gap-6 transition-all active:scale-95 cursor-pointer shadow-sm ${packingItems[item] ? 'opacity-40 grayscale bg-slate-50' : ''}`}>
+                                            <div className={`w-10 h-10 rounded-2xl border-4 flex items-center justify-center transition-all ${packingItems[item] ? 'bg-purple-400 border-transparent' : 'border-purple-50'}`}>
+                                                {packingItems[item] && <Icon name="check" className="text-white" size={24} />}
                                             </div>
-                                            <span className={`font-black text-lg text-slate-600 ${packingItems[item] ? 'line-through' : ''}`}>{item}</span>
+                                            <span className={`font-bold text-xl text-slate-600 ${packingItems[item] ? 'line-through' : ''}`}>{item}</span>
                                         </div>
                                     ))}
                                 </section>
@@ -544,31 +573,31 @@
 
                     {/* 天氣預報 Modal */}
                     {isWeatherModalOpen && (
-                        <div className="fixed inset-0 z-[120] modal-mask flex items-center justify-center p-8">
-                            <div className="bg-white w-full rounded-[60px] p-10 shadow-2xl space-y-6 animate-in slide-in-from-bottom duration-300 max-h-[80vh] overflow-y-auto hide-scrollbar border-b-[15px] border-chic-purple">
-                                <div className="flex justify-between items-center mb-4"><h3 className="text-3xl font-black text-slate-800 italic underline decoration-chic-purple decoration-4">福岡週報 🌦️</h3><button onClick={() => setIsWeatherModalOpen(false)} className="p-3 text-slate-300 active:scale-75 transition-all"><Icon name="x" size={32} /></button></div>
-                                <div className="space-y-4">{(forecast || []).map((f, i) => (<div key={i} className="flex items-center justify-between p-6 bg-slate-50 rounded-[40px] shadow-sm"><div className="flex items-center gap-5"><span className="text-xl font-black text-slate-400 w-16 tracking-tighter">{f.date}</span><Icon name="cloud-sun" size={32} className="text-chic-purple" /></div><div className="flex items-center gap-4"><span className="text-3xl font-black text-slate-700 leading-none">{f.max}°</span><div className="w-px h-8 bg-slate-200"></div><span className="text-3xl font-black text-slate-300 leading-none">{f.min}°</span></div></div>))}</div>
-                                <button onClick={() => setIsWeatherModalOpen(false)} className="w-full kuromi-gradient text-white py-6 rounded-[40px] font-black text-2xl shadow-xl mt-4 active:scale-95 transition-all text-white shadow-purple-200">關閉 💜</button>
+                        <div className="fixed inset-0 z-[120] modal-mask flex items-center justify-center p-6">
+                            <div className="bg-white/95 w-full rounded-[60px] p-12 shadow-2xl space-y-8 animate-in slide-in-from-bottom duration-300 max-h-[85vh] overflow-y-auto hide-scrollbar border-b-[20px] border-chic-purple">
+                                <div className="flex justify-between items-center mb-6"><h3 className="text-4xl font-black text-slate-800 italic underline decoration-chic-purple decoration-4 underline-offset-4">福岡週報 🌦️</h3><button onClick={() => setIsWeatherModalOpen(false)} className="p-4 text-slate-300 active:scale-75 transition-all"><Icon name="x" size={40} /></button></div>
+                                <div className="space-y-6">{(forecast || []).map((f, i) => (<div key={i} className="flex items-center justify-between p-8 bg-slate-50 rounded-[45px] shadow-sm"><div className="flex items-center gap-6"><span className="text-2xl font-black text-slate-400 w-20 tracking-tighter">{f.date}</span><Icon name="cloud-sun" size={40} className="text-chic-purple opacity-80" /></div><div className="flex items-center gap-5"><span className="text-4xl font-black text-slate-700 leading-none">{f.max}°</span><div className="w-px h-10 bg-slate-200"></div><span className="text-4xl font-black text-slate-300 leading-none">{f.min}°</span></div></div>))}</div>
+                                <button onClick={() => setIsWeatherModalOpen(false)} className="w-full btn-gradient text-white py-8 rounded-[40px] font-black text-3xl shadow-2xl mt-6 active:scale-95 transition-all">關閉 💜</button>
                             </div>
                         </div>
                     )}
 
                     {/* 編輯計畫 Modal */}
                     {isEditingPlan && (
-                        <div className="fixed inset-0 z-[110] modal-mask flex items-center justify-center p-8">
-                            <div className="bg-white w-full rounded-[60px] p-10 shadow-2xl space-y-10 animate-in zoom-in border-t-[15px] border-chic-purple">
-                                <h3 className="text-3xl font-black text-slate-800 text-center kuromi-font tracking-tight">{editingPlan ? '修改計畫 ✏️' : '新增計畫 ✏️'}</h3>
-                                <div className="space-y-8 text-left">
-                                    <div className="space-y-4">
-                                        <label className="text-xs font-black text-slate-400 ml-4 uppercase tracking-[0.3em] block">預計時間 (如 14:30)</label>
-                                        <input value={editPlanBuffer.time} onChange={(e) => setEditPlanBuffer({...editPlanBuffer, time: e.target.value})} className="w-full bg-slate-50 rounded-[35px] p-7 text-4xl font-black border-4 border-transparent focus:border-purple-100 outline-none transition-all shadow-inner" />
-                                        <label className="text-xs font-black text-slate-400 ml-4 uppercase tracking-[0.3em] block">計畫內容</label>
-                                        <input value={editPlanBuffer.title} onChange={(e) => setEditPlanBuffer({...editPlanBuffer, title: e.target.value})} className="w-full bg-slate-50 rounded-[35px] p-7 text-2xl font-black border-4 border-transparent focus:border-purple-100 outline-none transition-all shadow-inner" />
+                        <div className="fixed inset-0 z-[110] modal-mask flex items-center justify-center p-6">
+                            <div className="bg-white/95 w-full rounded-[60px] p-12 shadow-2xl space-y-12 animate-in zoom-in border-t-[20px] border-chic-purple">
+                                <h3 className="text-4xl font-black text-slate-800 text-center kuromi-font tracking-tight">{editingPlan ? '修改計畫 ✏️' : '新增計畫 ✏️'}</h3>
+                                <div className="space-y-10 text-left">
+                                    <div className="space-y-6">
+                                        <label className="text-sm font-black text-slate-400 ml-6 uppercase tracking-[0.4em] block">預計時間 (如 14:30)</label>
+                                        <input value={editPlanBuffer.time} onChange={(e) => setEditPlanBuffer({...editPlanBuffer, time: e.target.value})} className="w-full bg-slate-50 rounded-[40px] p-8 text-5xl font-black border-4 border-transparent focus:border-purple-100 outline-none transition-all shadow-inner text-center tracking-tighter" />
+                                        <label className="text-sm font-black text-slate-400 ml-6 uppercase tracking-[0.4em] block">計畫內容</label>
+                                        <input value={editPlanBuffer.title} onChange={(e) => setEditPlanBuffer({...editPlanBuffer, title: e.target.value})} className="w-full bg-slate-50 rounded-[40px] p-8 text-3xl font-black border-4 border-transparent focus:border-purple-100 outline-none transition-all shadow-inner" />
                                     </div>
                                 </div>
-                                <div className="flex gap-4 pt-2">
-                                    <button onClick={savePlan} disabled={isSaving} className="flex-1 kuromi-gradient text-white py-6 rounded-[40px] font-black text-2xl shadow-xl active:scale-95 transition-all">{isSaving ? "同步中..." : "確認儲存 💜"}</button>
-                                    <button onClick={() => { setIsEditingPlan(false); setEditingPlan(null); }} className="px-10 bg-slate-100 text-slate-400 rounded-[40px] font-black active:scale-95 transition-all text-lg">取消</button>
+                                <div className="flex gap-6 pt-4">
+                                    <button onClick={savePlan} disabled={isSaving} className="flex-1 btn-gradient text-white py-8 rounded-[40px] font-black text-3xl shadow-2xl active:scale-95 transition-all">{isSaving ? "同步中..." : "確認儲存"}</button>
+                                    <button onClick={() => { setIsEditingPlan(false); setEditingPlan(null); }} className="px-12 bg-slate-100 text-slate-400 rounded-[40px] font-black active:scale-95 transition-all text-xl">取消</button>
                                 </div>
                             </div>
                         </div>
