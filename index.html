@@ -197,7 +197,7 @@
                     { time: '09:30', title: 'LaLaport 福岡 (1:1 鋼彈拍攝) 🤖', type: 'attraction' },
                     { time: '12:30', title: '午餐：LaLaport 3F 美食街 🍴', type: 'attraction' },
                     { time: '14:00', title: '購物：阿卡將 & 超市採購 🛍️', type: 'attraction' },
-                    { time: '19:00', title: '晚餐：前田屋博多店 (牛腸鍋) 🥘', type: 'attraction' }
+                    { time: '19:00', title: '晚餐：博多もつ鍋前田屋 (牛腸鍋) 🥘', type: 'attraction' }
                 ],
                 '6/03': [
                     { time: '09:00', title: '出發太宰府 (搭乘旅人號) 🚃', type: 'attraction' },
@@ -420,7 +420,6 @@
                                                         </div>
                                                     </div>
                                                     <h3 className="text-xl font-black text-slate-700 leading-tight mb-4">{plan.title}</h3>
-                                                    <button onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(plan.title)}`, '_blank')} className="text-xs font-bold text-blue-400 flex items-center gap-1 active:scale-95 transition-all shadow-sm bg-blue-50 px-3 py-1.5 rounded-xl w-fit"><Icon name="navigation" size={12}/> 查看地圖導航</button>
                                                 </div>
                                             </div>
                                         ))}
@@ -508,13 +507,13 @@
                                 <div className="chic-card p-10 border-[6px] border-purple-100 text-center relative overflow-hidden bg-white shadow-xl">
                                     <Icon name="hotel" size={40} className="text-purple-200 mx-auto mb-2" />
                                     <h3 className="text-3xl font-black text-slate-800 mb-1 leading-tight tracking-tighter">博多西鐵 CROOM 🏨</h3>
-                                    <p className="text-[10px] text-slate-400 font-black mb-8 uppercase tracking-[0.2em]">博多祇園櫛田神社前站</p>
-                                    <div className="flex gap-4"><button onClick={() => window.open('https://maps.app.goo.gl/hotel','_blank')} className="flex-1 kuromi-gradient text-white py-5 rounded-[30px] font-black text-lg shadow-xl active:scale-95 transition-all text-white">地圖導航</button><a href="tel:092-235-0311" className="flex-1 border-4 border-slate-900 py-5 rounded-[30px] font-black text-lg text-slate-900 flex items-center justify-center active:scale-95 transition-all">撥打電話</a></div>
+                                    <p className="text-[10px] text-slate-400 font-black mb-8 uppercase tracking-[0.2em]">博多祇園櫛田神社前</p>
+                                    <div className="flex gap-4"><button onClick={() => window.open('https://maps.app.goo.gl/hotel','_blank')} className="flex-1 kuromi-gradient text-white py-5 rounded-[30px] font-black text-sm shadow-md active:scale-95 transition-all text-white">地圖定位</button><a href="tel:092-235-0311" className="flex-1 border-4 border-slate-900 py-5 rounded-[30px] font-black text-lg text-slate-900 flex items-center justify-center active:scale-95 transition-all">撥打電話</a></div>
                                 </div>
 
                                 {/* 快速入口 */}
                                 <section>
-                                    <div className="flex items-center gap-3 mb-6 px-1"><Icon name="luggage" size={24} className="text-purple-400" /><h3 className="text-2xl font-black text-slate-800 underline decoration-pink-300 decoration-4 underline-offset-4 tracking-tighter">快速導航資源 💜</h3></div>
+                                    <div className="flex items-center gap-3 mb-6 px-1"><Icon name="luggage" size={24} className="text-purple-400" /><h3 className="text-2xl font-black text-slate-800 underline decoration-pink-300 decoration-4 underline-offset-4 tracking-tighter">快速資源 💜</h3></div>
                                     <div className="grid grid-cols-2 gap-4">
                                         <button onClick={() => window.open('https://vjw-lp.digital.go.jp/','_blank')} className="chic-card p-6 flex flex-col items-center justify-center gap-2 active:scale-95 transition-all shadow-sm">
                                             <div className="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center text-blue-400"><Icon name="refresh" size={24}/></div>
@@ -527,7 +526,7 @@
                                     </div>
                                 </section>
 
-                                {/* 行李檢查表 */}
+                                {/* 行理檢查表 */}
                                 <section className="space-y-4 pb-10">
                                     <h3 className="text-xl font-black text-slate-800 flex items-center gap-3 px-2 italic underline decoration-purple-100 decoration-8 underline-offset-[-2px]">行李檢查清單 💼</h3>
                                     {['護照/身分證/VJW QR碼', '日幣/信用卡/保險單', '換洗衣物/好走的鞋', '相機/行動電源/充電線', 'Ruby 藥品/尿布/副食品'].map(item => (
@@ -549,7 +548,7 @@
                             <div className="bg-white w-full rounded-[60px] p-10 shadow-2xl space-y-6 animate-in slide-in-from-bottom duration-300 max-h-[80vh] overflow-y-auto hide-scrollbar border-b-[15px] border-chic-purple">
                                 <div className="flex justify-between items-center mb-4"><h3 className="text-3xl font-black text-slate-800 italic underline decoration-chic-purple decoration-4">福岡週報 🌦️</h3><button onClick={() => setIsWeatherModalOpen(false)} className="p-3 text-slate-300 active:scale-75 transition-all"><Icon name="x" size={32} /></button></div>
                                 <div className="space-y-4">{(forecast || []).map((f, i) => (<div key={i} className="flex items-center justify-between p-6 bg-slate-50 rounded-[40px] shadow-sm"><div className="flex items-center gap-5"><span className="text-xl font-black text-slate-400 w-16 tracking-tighter">{f.date}</span><Icon name="cloud-sun" size={32} className="text-chic-purple" /></div><div className="flex items-center gap-4"><span className="text-3xl font-black text-slate-700 leading-none">{f.max}°</span><div className="w-px h-8 bg-slate-200"></div><span className="text-3xl font-black text-slate-300 leading-none">{f.min}°</span></div></div>))}</div>
-                                <button onClick={() => setIsWeatherModalOpen(false)} className="w-full kuromi-gradient text-white py-6 rounded-[40px] font-black text-2xl shadow-xl mt-4 active:scale-95 transition-all text-white">關閉 💜</button>
+                                <button onClick={() => setIsWeatherModalOpen(false)} className="w-full kuromi-gradient text-white py-6 rounded-[40px] font-black text-2xl shadow-xl mt-4 active:scale-95 transition-all text-white shadow-purple-200">關閉 💜</button>
                             </div>
                         </div>
                     )}
