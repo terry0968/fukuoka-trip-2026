@@ -52,7 +52,7 @@
         .timeline-line {
             position: absolute;
             left: 30px;
-            top: 45px;
+            top: 40px;
             bottom: -35px;
             width: 3px;
             background: repeating-linear-gradient(to bottom, #E2D9F3 0px, #E2D9F3 8px, transparent 8px, transparent 16px);
@@ -64,7 +64,7 @@
         .tab-active::after {
             content: '';
             position: absolute;
-            bottom: -2px; left: 25%; width: 50%; height: 5px;
+            bottom: -2px; left: 25%; width: 50%; height: 4px;
             background: var(--chic-purple); border-radius: 10px;
         }
 
@@ -162,16 +162,66 @@
                 { date: '6/05', dayName: 'FRI' }, { date: '6/06', dayName: 'SAT' }
             ];
 
-            // 🛠️ 定義最新校正行程 (5/30 - 6/6)
+            // 🛠️ 定義最新校正行程 (5/30 - 6/6 深度冒險之旅版)
             const DEFAULT_PLANS = {
-                '5/30': [{ time: '14:40', title: '抵達福岡 (CI128) ✈️', type: 'fixed' }, { time: '19:00', title: '飯店 Check-in 🏨', type: 'attraction' }, { time: '20:30', title: '博多運河城逛街 🛍️', type: 'attraction' }],
-                '5/31': [{ time: '10:00', title: '海之中道海洋世界 (水族館) 🐬', type: 'attraction' }],
-                '6/01': [{ time: '11:00', title: 'LaLaport 福岡 (1:1 鋼彈) 🤖', type: 'attraction' }],
-                '6/02': [{ time: '10:00', title: '大濠公園散步 🌳', type: 'attraction' }, { time: '14:30', title: 'TeamLab Forest 🎨', type: 'attraction' }],
-                '6/03': [{ time: '10:00', title: '太宰府天滿宮 🌸', type: 'attraction' }, { time: '14:00', title: '九州國立博物館 🏺', type: 'attraction' }],
-                '6/04': [{ time: '10:30', title: '天神地下街逛街 🛍️', type: 'attraction' }],
-                '6/05': [{ time: '10:30', title: '麵包超人博物館 🤖', type: 'attraction' }, { time: '15:00', title: '川端通商店街 🍡', type: 'attraction' }],
-                '6/06': [{ time: '10:00', title: '博多站最後採買 🛒', type: 'attraction' }, { time: '16:00', title: '前往機場 (CI129) ✈️', type: 'fixed' }]
+                '5/30': [
+                    { time: '14:40', title: '華航 CI128 出發 ✈️', type: 'fixed' },
+                    { time: '18:05', title: '抵達福岡機場 (入境 VJW QR) 🛬', type: 'fixed' },
+                    { time: '19:30', title: '飯店 Check-in (CROOM) 🏨', type: 'attraction' },
+                    { time: '20:00', title: '晚餐：川端商店街周邊 🍴', type: 'attraction' },
+                    { time: '21:00', title: '超商尋寶 & 明日備品採購 🏪', type: 'attraction' }
+                ],
+                '5/31': [
+                    { time: '09:30', title: '悠閒早餐時間 🥐', type: 'attraction' },
+                    { time: '10:30', title: '大濠公園 (踩天鵝船/湖畔星巴克) 🌳', type: 'attraction' },
+                    { time: '12:30', title: '午餐：MARK IS 3F 美食街 🍴', type: 'attraction' },
+                    { time: '14:00', title: 'MARK IS 福岡百道購物 🛍️', type: 'attraction' },
+                    { time: '17:00', title: '福岡塔登塔 & 百道海濱夕照 🗼', type: 'attraction' },
+                    { time: '19:30', title: '晚餐：燒肉 One Karubi (中洲店) 🥩', type: 'attraction' }
+                ],
+                '6/01': [
+                    { time: '07:45', title: '外帶麵包：Dacomecca (提早排隊) 🥐', type: 'attraction' },
+                    { time: '10:00', title: '海之中道海洋世界 (看海豚秀) 🐬', type: 'attraction' },
+                    { time: '12:30', title: '午餐：Reilly 水族館內餐點 🍴', type: 'attraction' },
+                    { time: '14:00', title: '海之中道海濱公園 (動物森林) 🌳', type: 'attraction' },
+                    { time: '19:00', title: '晚餐：博多車站拉麵一條街 🍜', type: 'attraction' }
+                ],
+                '6/02': [
+                    { time: '08:30', title: '簡單早午餐時間 🍙', type: 'attraction' },
+                    { time: '09:30', title: 'LaLaport 福岡 (1:1 鋼彈拍攝) 🤖', type: 'attraction' },
+                    { time: '12:30', title: '午餐：LaLaport 3F 美食街 🍴', type: 'attraction' },
+                    { time: '14:00', title: '購物：阿卡將 & 超市採購 🛍️', type: 'attraction' },
+                    { time: '19:00', title: '晚餐：前田屋博多店 (牛腸鍋) 🥘', type: 'attraction' }
+                ],
+                '6/03': [
+                    { time: '09:00', title: '出發太宰府 (搭乘旅人號) 🚃', type: 'attraction' },
+                    { time: '10:30', title: '太宰府天滿宮參拜 & 梅枝餅 ⛩️', type: 'attraction' },
+                    { time: '12:30', title: '午餐：太宰府參道美食探訪 🍴', type: 'attraction' },
+                    { time: '13:30', title: '九州國立博物館 & 太宰府遊樂園 🏺', type: 'attraction' },
+                    { time: '16:30', title: '前往天神商圈 🚃', type: 'attraction' },
+                    { time: '18:30', title: '晚餐：和牛まぶし 武蔵 (天神店) 🥩', type: 'attraction' }
+                ],
+                '6/04': [
+                    { time: '09:00', title: '悠閒早餐：Bake 起司塔 🧀', type: 'attraction' },
+                    { time: '10:30', title: '天神商圈/地下街血拼 (Mina/Bic) 🛍️', type: 'attraction' },
+                    { time: '13:00', title: '午餐：天神百貨餐廳層 🍴', type: 'attraction' },
+                    { time: '14:30', title: '免稅補貨 & 藥妝大採購 💄', type: 'attraction' },
+                    { time: '18:30', title: '晚餐：博多華味鳥 天神店 (水炊鍋) 🥘', type: 'attraction' }
+                ],
+                '6/05': [
+                    { time: '09:30', title: '櫛田神社 & 川端通商店街 ⛩️', type: 'attraction' },
+                    { time: '11:30', title: '午餐：大東園 本店 (燒肉定食) 🥩', type: 'attraction' },
+                    { time: '13:00', title: '麵包超人博物館 / 運河城採買 🤖', type: 'attraction' },
+                    { time: '17:00', title: '晚餐：かわ屋 (烤雞皮居酒屋) 🍻', type: 'attraction' },
+                    { time: '19:00', title: '回飯店行李大打包 🧳', type: 'attraction' }
+                ],
+                '6/06': [
+                    { time: '09:00', title: '退房寄放行李 🏨', type: 'attraction' },
+                    { time: '10:30', title: '博多車站：燕林廣場 & 最後伴手禮 🚂', type: 'attraction' },
+                    { time: '13:00', title: '完美收尾午餐 🍴', type: 'attraction' },
+                    { time: '15:30', title: '出發前往機場 (計程車) 🚕', type: 'fixed' },
+                    { time: '19:10', title: '華航 CI129 期待下次旅行 ✈️', type: 'fixed' }
+                ]
             };
 
             const couponList = [
@@ -288,7 +338,7 @@
                     <div className={`fixed top-8 left-1/2 -translate-x-1/2 z-[200] transition-all duration-500 ${toast.show ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-10 pointer-events-none'}`}>
                         <div className="bg-black/90 text-white px-8 py-4 rounded-full flex items-center gap-3 shadow-2xl border border-purple-400 backdrop-blur-md">
                             <Icon name="heart" size={18} className="text-pink-400" />
-                            <span className="font-black tracking-tight">{toast.msg}</span>
+                            <span className="font-bold tracking-tight">{toast.msg}</span>
                         </div>
                     </div>
 
@@ -375,7 +425,7 @@
                             <div className="space-y-8 animate-in fade-in">
                                 <h2 className="text-2xl font-black text-slate-800 italic underline decoration-chic-purple decoration-4 underline-offset-4">福岡景點地圖 📍</h2>
                                 <button onClick={() => window.open('https://maps.app.goo.gl/3yBGjjqpevzTECGB9', '_blank')} className="w-full bg-slate-900 text-white p-10 rounded-[45px] shadow-2xl flex items-center justify-between border-4 border-white active:scale-95 transition-all">
-                                    <div className="text-left"><p className="text-3xl font-black mb-1">開啟 Google Map</p><p className="text-[11px] font-bold opacity-50 uppercase tracking-widest text-white italic tracking-tighter">Open My Saved List 💜</p></div>
+                                    <div className="text-left"><p className="text-3xl font-black mb-1 text-white">開啟 Google Map</p><p className="text-[11px] font-bold opacity-40 uppercase tracking-widest text-white italic tracking-tighter">Open My Saved List 💜</p></div>
                                     <div className="bg-chic-purple p-4 rounded-full shadow-lg"><Icon name="navigation" size={24} className="text-white" /></div>
                                 </button>
                                 <div className="bg-purple-50/50 p-12 rounded-[50px] border-2 border-dashed border-purple-200 italic font-bold text-purple-400 text-center text-lg leading-relaxed shadow-inner">
@@ -417,7 +467,7 @@
                                 <div className="space-y-4 pb-12">
                                     {expenses.map(ex => (
                                         <div key={ex.id} className="chic-card p-6 flex justify-between items-center border-l-[14px] border-chic-purple transition-all active:scale-95 shadow-sm">
-                                            <div className="flex-1 mr-4"><div className="flex items-center gap-3 mb-1.5"><span className="text-[10px] font-black text-white bg-slate-800 px-3 py-1 rounded-lg uppercase tracking-wider">{ex.payer}</span><span className="text-[10px] text-slate-300 font-bold tracking-tighter">{ex.date}</span></div><p className="text-xl font-black text-slate-700 leading-tight">{ex.item}</p></div>
+                                            <div className="flex-1 mr-4"><div className="flex items-center gap-3 mb-1.5"><span className="text-[10px] font-black text-white bg-slate-800 px-3 py-1 rounded-lg uppercase tracking-wider">{ex.payer}</span><span className="text-[10px] text-slate-300 font-bold tracking-tighter">{ex.date}</span></div><p className="text-xl font-black text-slate-700">{ex.item}</p></div>
                                             <div className="text-right flex items-center gap-4"><div><p className="text-2xl font-black text-slate-800 mb-0.5">¥{ex.amount?.toLocaleString()}</p><p className="text-[10px] font-black text-pink-400">NT$ {ex.amountTwd?.toLocaleString()}</p></div><button onClick={() => db.collection(`artifacts/${appId}/public/data/expenses`).doc(ex.id).delete()} className="p-2 text-slate-200 hover:text-red-400 active:scale-75 transition-all"><Icon name="trash" size={18}/></button></div>
                                         </div>
                                     ))}
@@ -431,8 +481,8 @@
                                 {/* 優惠卷區 */}
                                 <section>
                                     <div className="flex items-center gap-4 chic-card p-7 mb-10 border-b-[12px] border-chic-orange shadow-xl">
-                                        <div className="p-4 bg-orange-100 rounded-[25px] text-chic-orange shadow-inner"><Icon name="ticket" size={32} /></div>
-                                        <p className="text-2xl font-black text-slate-800 tracking-tight">購物優惠卷 📂</p>
+                                        <Icon name="ticket" size={32} className="text-chic-orange" />
+                                        <p className="text-xl font-black text-slate-700">優惠卷專區 📂</p>
                                     </div>
                                     <div className="space-y-4">
                                         {couponList.map((c, i) => (
@@ -445,24 +495,24 @@
                                 </section>
 
                                 {/* 飯店與地圖 */}
-                                <div className="chic-card p-10 border-[6px] border-purple-100 text-center relative overflow-hidden bg-white shadow-2xl">
-                                    <Icon name="hotel" size={50} className="text-purple-200 mx-auto mb-4" />
-                                    <h3 className="text-3xl font-black text-slate-800 mb-1 leading-tight tracking-tighter">博多西鐵 CROOM 🏨</h3>
-                                    <p className="text-[11px] text-slate-400 font-black mb-10 uppercase tracking-[0.3em]">櫛田神社前站 4 號出口</p>
-                                    <div className="flex gap-4"><button onClick={() => window.open('https://maps.app.goo.gl/hotel','_blank')} className="flex-1 kuromi-gradient text-white py-5 rounded-[30px] font-black text-lg shadow-xl active:scale-95 transition-all text-white">地圖導航</button><a href="tel:092-235-0311" className="flex-1 border-4 border-slate-900 py-5 rounded-[30px] font-black text-lg text-slate-900 flex items-center justify-center active:scale-95 transition-all">撥打電話</a></div>
+                                <div className="chic-card p-10 border-[6px] border-purple-100 text-center relative overflow-hidden bg-white shadow-xl">
+                                    <Icon name="hotel" size={40} className="text-purple-200 mx-auto mb-2" />
+                                    <h3 className="text-2xl font-black text-slate-800 mb-1 leading-tight tracking-tighter">博多西鐵 CROOM 🏨</h3>
+                                    <p className="text-[10px] text-slate-400 font-black mb-8 uppercase tracking-[0.2em]">博多祇園櫛田神社前站</p>
+                                    <div className="flex gap-4"><button onClick={() => window.open('https://maps.app.goo.gl/hotel','_blank')} className="flex-1 kuromi-gradient text-white py-5 rounded-2xl font-black text-sm shadow-md active:scale-95 transition-all text-white">地圖導航</button><a href="tel:092-235-0311" className="flex-1 border-4 border-slate-900 py-5 rounded-2xl font-black text-sm text-slate-900 flex items-center justify-center active:scale-95 transition-all">撥打電話</a></div>
                                 </div>
 
                                 {/* 快速入口 */}
                                 <section>
-                                    <div className="flex items-center gap-3 mb-8 px-2"><Icon name="luggage" size={24} className="text-purple-400" /><h3 className="text-2xl font-black text-slate-800 underline decoration-pink-300 decoration-4 underline-offset-4 tracking-tighter">快速導航資源 💜</h3></div>
-                                    <div className="grid grid-cols-2 gap-6 px-1">
-                                        <button onClick={() => window.open('https://vjw-lp.digital.go.jp/','_blank')} className="chic-card p-8 flex flex-col items-center justify-center gap-3 active:scale-95 transition-all shadow-lg border-b-[10px] border-blue-400">
-                                            <div className="w-14 h-14 bg-blue-50 rounded-full flex items-center justify-center text-blue-400"><Icon name="refresh" size={28}/></div>
-                                            <span className="font-black text-sm text-slate-500 uppercase tracking-tighter">Visit Japan</span>
+                                    <div className="flex items-center gap-3 mb-6 px-1"><Icon name="luggage" size={24} className="text-purple-400" /><h3 className="text-2xl font-black text-slate-800 underline decoration-pink-300 decoration-4 underline-offset-4 tracking-tighter">快速導航資源 💜</h3></div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <button onClick={() => window.open('https://vjw-lp.digital.go.jp/','_blank')} className="chic-card p-6 flex flex-col items-center justify-center gap-2 active:scale-95 transition-all shadow-sm">
+                                            <div className="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center text-blue-400"><Icon name="refresh" size={24}/></div>
+                                            <span className="font-bold text-sm text-slate-500 uppercase tracking-tighter">Visit Japan</span>
                                         </button>
-                                        <button onClick={() => window.open('https://photos.google.com','_blank')} className="chic-card p-8 flex flex-col items-center justify-center gap-3 active:scale-95 transition-all shadow-lg border-b-[10px] border-pink-400">
-                                            <div className="w-14 h-14 bg-pink-50 rounded-full flex items-center justify-center text-pink-400"><Icon name="image" size={28}/></div>
-                                            <span className="font-black text-sm text-slate-500 uppercase tracking-tighter">Family Album</span>
+                                        <button onClick={() => window.open('https://photos.google.com','_blank')} className="chic-card p-6 flex flex-col items-center justify-center gap-2 active:scale-95 transition-all shadow-sm">
+                                            <div className="w-12 h-12 bg-pink-100 rounded-full flex items-center justify-center text-pink-400"><Icon name="image" size={24}/></div>
+                                            <span className="font-bold text-sm text-slate-500 uppercase tracking-tighter">Family Album</span>
                                         </button>
                                     </div>
                                 </section>
@@ -483,7 +533,7 @@
                         )}
                     </div>
 
-                    {/* 天氣 Modal */}
+                    {/* 天氣預報 Modal */}
                     {isWeatherModalOpen && (
                         <div className="fixed inset-0 z-[120] modal-mask flex items-center justify-center p-8">
                             <div className="bg-white w-full rounded-[60px] p-10 shadow-2xl space-y-6 animate-in slide-in-from-bottom duration-300 max-h-[80vh] overflow-y-auto hide-scrollbar border-b-[15px] border-chic-purple">
@@ -494,7 +544,7 @@
                         </div>
                     )}
 
-                    {/* 編輯 Modal */}
+                    {/* 編輯計畫 Modal */}
                     {isEditingPlan && (
                         <div className="fixed inset-0 z-[110] modal-mask flex items-center justify-center p-8">
                             <div className="bg-white w-full rounded-[60px] p-10 shadow-2xl space-y-10 animate-in zoom-in border-t-[15px] border-chic-purple">
