@@ -1,26 +1,33 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   Heart, CloudSun, Navigation, PencilLine, Plus, 
-  ChevronLeft, CalendarPlus, Banknote, Coins, 
-  Trash2, RefreshCw, Luggage, Hotel, Sparkles, MapPinned,
-  AlertCircle, CheckCircle2, ShieldCheck, Ticket, Folder,
-  Image as ImageIcon, Wallet, ChevronRight, UserCircle2
+  ChevronLeft, Banknote, Coins, 
+  Trash2, RefreshCw, Luggage, Hotel, Sparkles,
+  CheckCircle2, Ticket, Folder,
+  Image as ImageIcon, Wallet, ChevronRight
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { 
   getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged 
 } from 'firebase/auth';
 import { 
-  getFirestore, doc, setDoc, collection, query, onSnapshot, 
+  getFirestore, doc, setDoc, collection, onSnapshot, 
   deleteDoc, serverTimestamp 
 } from 'firebase/firestore';
 
-// --- Firebase 初始化 ---
-const firebaseConfig = JSON.parse(__firebase_config);
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'fukuoka-trip-2026';
+// --- (1) Firebase 配置防崩潰處理 ---
+let db, auth;
+let appId = 'fukuoka-trip-2026';
+
+try {
+  const firebaseConfig = JSON.parse(__firebase_config);
+  const app = initializeApp(firebaseConfig);
+  auth = getAuth(app);
+  db = getFirestore(app);
+  if (typeof __app_id !== 'undefined') appId = __app_id;
+} catch (error) {
+  console.error("Firebase initialization failed:", error);
+}
 
 const App = () => {
   const [user, setUser] = useState(null);
@@ -32,22 +39,22 @@ const App = () => {
   const [isEditingPlan, setIsEditingPlan] = useState(false);
   const [editingPlan, setEditingPlan] = useState(null);
   const [editPlanBuffer, setEditPlanBuffer] = useState({ time: '', title: '', type: 'attraction' });
-  const [exchangeRate] = useState(0.211);
-  const [fxInput, setFxInput] = useState('');
-  const [newExpense, setNewExpense] = useState({ date: new Date().toISOString().split('T')[0], payer: 'KCY', item: '', amount: '' });
+  const [fxJpy, setFxJpy] = useState('');
+  const [fxTwd, setFxTwd] = useState('');
+  const exchangeRate = 0.211;
   const [isSaving, setIsSaving] = useState(false);
   const [toast, setToast] = useState({ show: false, msg: '' });
-
   const [weather, setWeather] = useState({ temp: '--', code: 0, loading: true });
   const [forecast, setForecast] = useState([]);
   const [isWeatherModalOpen, setIsWeatherModalOpen] = useState(false);
+  const [packingItems, setPackingItems] = useState({});
 
   const members = ['KCY', 'Ruby', 'YSL', 'Tsai'];
   const dates = [
     { date: '5/30', dayName: 'SAT' }, { date: '5/31', dayName: 'SUN' },
-    { date: '6/1', dayName: 'MON' }, { date: '6/2', dayName: 'TUE' },
-    { date: '6/3', dayName: 'WED' }, { date: '6/4', dayName: 'THU' },
-    { date: '6/5', dayName: 'FRI' }, { date: '6/6', dayName: 'SAT' }
+    { date: '6/01', dayName: 'MON' }, { date: '6/02', dayName: 'TUE' },
+    { date: '6/03', dayName: 'WED' }, { date: '6/04', dayName: 'THU' },
+    { date: '6/05', dayName: 'FRI' }, { date: '6/06', dayName: 'SAT' }
   ];
 
   // 🛠️ 資料定義：預設暫定行程
@@ -58,30 +65,25 @@ const App = () => {
       { time: '20:30', title: '博多運河城 🛍️', type: 'attraction' }
     ],
     '5/31': [{ time: '10:00', title: '海之中道海洋世界 (水族館) 🐬', type: 'attraction' }],
-    '6/1': [{ time: '11:00', title: 'LaLaport 福岡 (1:1 鋼彈) 🤖', type: 'attraction' }],
-    '6/2': [
+    '6/01': [{ time: '11:00', title: 'LaLaport 福岡 (1:1 鋼彈) 🤖', type: 'attraction' }],
+    '6/02': [
       { time: '10:00', title: '大濠公園散步 🌳', type: 'attraction' },
       { time: '14:30', title: 'TeamLab Forest 🎨', type: 'attraction' }
     ],
-    '6/3': [
+    '6/03': [
       { time: '10:00', title: '太宰府天滿宮 🌸', type: 'attraction' },
       { time: '14:00', title: '九州國立博物館 🏺', type: 'attraction' }
     ],
-    '6/4': [{ time: '10:30', title: '天神地下街逛街 🛍️', type: 'attraction' }],
-    '6/5': [
+    '6/04': [{ time: '10:30', title: '天神地下街逛街 🛍️', type: 'attraction' }],
+    '6/05': [
       { time: '10:30', title: '麵包超人博物館 🤖', type: 'attraction' },
       { time: '15:00', title: '川端通商店街 🍡', type: 'attraction' }
     ],
-    '6/6': [
+    '6/06': [
       { time: '10:00', title: '博多站最後採買 🛒', type: 'attraction' },
       { time: '16:00', title: '前往福岡機場 (CI129) ✈️', type: 'fixed' }
     ]
   };
-
-  const mapSpotList = [
-    { category: '推薦景點 ⛩️', items: ['博多運河城', '櫛田神社', '太宰府天滿宮', '大濠公園', '福岡塔', 'LaLaport 福岡', '海之中道海濱公園'] },
-    { category: '美味餐廳 🥩', items: ['燒肉 大東園', '一蘭拉麵 總店', '博多華味鳥', '元祖博多明太子飯', '博多牛雜鍋 おおやま'] }
-  ];
 
   const couponList = [
     { category: '1. 藥妝類 💊', link: 'https://drive.google.com/drive/folders/15tPJsxMOt83LFnWM2rW8H7E2MjupTphA' },
@@ -89,21 +91,16 @@ const App = () => {
     { category: '3. 百貨公司 機場免稅店 🛫', link: 'https://drive.google.com/drive/folders/1JEuQ0ysYEatA9yJR4H2-6KotCT7oClp1_' }
   ];
 
-  const countdownDays = useMemo(() => {
-    const target = new Date('2026-05-30T00:00:00');
-    const now = new Date();
-    const diff = target.getTime() - now.getTime();
-    return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
-  }, []);
-
-  // --- (1) Auth & Firestore Sync ---
+  // --- (2) Auth & Sync ---
   useEffect(() => {
     const initAuth = async () => {
-      if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-        await signInWithCustomToken(auth, __initial_auth_token);
-      } else {
-        await signInAnonymously(auth);
-      }
+      try {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          await signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+          await signInAnonymously(auth);
+        }
+      } catch (err) { console.error("Auth failed:", err); }
     };
     initAuth();
     const unsub = onAuthStateChanged(auth, setUser);
@@ -111,18 +108,20 @@ const App = () => {
   }, []);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || !db) return;
     const pathBase = `artifacts/${appId}/public/data`;
     const unsubItin = onSnapshot(collection(db, `${pathBase}/itinerary`), (snap) => {
       setItineraryData(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    });
+    }, (err) => console.error("Firestore Itin sync failed:", err));
+
     const unsubExp = onSnapshot(collection(db, `${pathBase}/expenses`), (snap) => {
       setExpenses(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => (b.date||"").localeCompare(a.date||"")));
-    });
+    }, (err) => console.error("Firestore Exp sync failed:", err));
+
     return () => { unsubItin(); unsubExp(); };
   }, [user]);
 
-  // --- (2) Weather API ---
+  // --- (3) Weather ---
   const fetchWeather = useCallback(async () => {
     try {
       const res = await fetch('https://api.open-meteo.com/v1/forecast?latitude=33.5902&longitude=130.4017&current_weather=true&daily=weathercode,temperature_2m_max,temperature_2m_min&timezone=Asia%2FTokyo');
@@ -134,7 +133,7 @@ const App = () => {
 
   useEffect(() => { fetchWeather(); }, [fetchWeather]);
 
-  // --- (3) Logic ---
+  // --- (4) Handlers ---
   const currentDayPlans = useMemo(() => {
     const day = dates[selectedDayIdx];
     if (!day) return [];
@@ -164,37 +163,34 @@ const App = () => {
       await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'itinerary', id), {
         ...editPlanBuffer, targetDate: dates[selectedDayIdx].date, updatedAt: serverTimestamp()
       }, { merge: true });
-      setIsEditingPlan(false); showToast("雲端同步成功 💜");
+      setIsEditingPlan(false); setEditingPlan(null); showToast("雲端同步成功 💜");
     } finally { setIsSaving(false); }
   };
 
+  const deletePlan = async (id) => {
+    if (!window.confirm("確定要移除這項行程嗎？")) return;
+    try {
+      await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'itinerary', id));
+      showToast("已從雲端移除");
+    } catch(e) { console.error(e); }
+  };
+
   const addExpense = async () => {
-    if (!newExpense.item || !newExpense.amount || !user) return;
+    if (!fxJpy || !user) return;
     setIsSaving(true);
     try {
       await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'expenses', `exp-${Date.now()}`), {
-        ...newExpense, amount: parseFloat(newExpense.amount), amountTwd: Math.round(parseFloat(newExpense.amount) * exchangeRate), createdAt: serverTimestamp()
+        payer: 'KCY', item: '旅遊花費', amount: parseFloat(fxJpy), amountTwd: Math.round(parseFloat(fxJpy) * exchangeRate), date: new Date().toISOString().split('T')[0], createdAt: serverTimestamp()
       });
-      setNewExpense({ ...newExpense, item: '', amount: '' }); showToast("記帳成功 💜");
+      setFxJpy(''); setFxTwd(''); showToast("記帳成功 💜");
     } finally { setIsSaving(false); }
   };
 
   return (
-    <div className="max-w-md mx-auto min-h-screen relative pb-24 bg-[#F8F9FA] text-[#2D2727] overflow-x-hidden font-['Noto_Sans_TC']">
+    <div className="max-w-md mx-auto min-h-screen relative pb-24 bg-[#F8F9FA] text-[#2D2727] overflow-x-hidden">
       
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&family=Noto+Sans+TC:wght@400;700;900&display=swap');
-        .kuromi-font { font-family: 'ZCOOL KuaiLe', cursive; }
-        .kuromi-gradient { background: linear-gradient(135deg, #9D76C1 0%, #765898 100%); }
-        .tab-active { color: #9D76C1; position: relative; }
-        .tab-active::after { content: ''; position: absolute; bottom: 0; left: 25%; width: 50%; height: 4px; background: #9D76C1; border-radius: 10px; }
-        .chic-card { background: white; border-radius: 24px; box-shadow: 0 8px 20px rgba(157, 118, 193, 0.05); border: 1px solid rgba(157, 118, 193, 0.1); }
-        .timeline-line { position: absolute; left: 28px; top: 40px; bottom: -20px; width: 3px; background: repeating-linear-gradient(to bottom, #E2D9F3 0px, #E2D9F3 5px, transparent 5px, transparent 10px); z-index: 0; }
-        .modal-mask { background-color: rgba(0, 0, 0, 0.4); backdrop-filter: blur(10px); }
-      `}</style>
-
       {/* Toast */}
-      <div className={`fixed top-8 left-1/2 -translate-x-1/2 z-[200] transition-all duration-500 ${toast.show ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-10 pointer-events-none'}`}>
+      <div className={`fixed top-8 left-1/2 -translate-x-1/2 z-[200] transition-all duration-500 ${toast.show ? 'opacity-100' : 'opacity-0 -translate-y-10 pointer-events-none'}`}>
         <div className="bg-black/90 text-white px-6 py-4 rounded-full flex items-center gap-3 shadow-2xl">
           <CheckCircle2 className="text-pink-400 w-5 h-5" />
           <span className="font-bold">{toast.msg}</span>
@@ -212,10 +208,10 @@ const App = () => {
                   <div key={m} className="w-8 h-8 rounded-full border-2 border-white kuromi-gradient flex items-center justify-center text-[10px] text-white font-bold shadow-sm">{m[0]}</div>
                 ))}
               </div>
-              <span className="text-[10px] text-slate-300 font-black uppercase tracking-widest">SHEN ADVENTURE</span>
+              <span className="text-[10px] text-slate-300 font-black uppercase tracking-widest">SHEN FAMILY TRIP</span>
             </div>
           </div>
-          <div onClick={() => setIsWeatherModalOpen(true)} className="bg-purple-50 p-4 rounded-[30px] text-center min-w-[100px] border border-purple-100 animate-in fade-in cursor-pointer active:scale-95 transition-all">
+          <div onClick={() => setIsWeatherModalOpen(true)} className="bg-purple-50 p-4 rounded-[30px] text-center min-w-[100px] border border-purple-100 float-anim cursor-pointer active:scale-95 transition-all">
             <CloudSun className={`w-8 h-8 mx-auto mb-1 ${weather.loading ? 'animate-pulse text-slate-300' : 'text-purple-400'}`} />
             <p className="text-2xl font-black text-purple-600">{weather.temp}°C</p>
             <p className="text-[9px] text-purple-300 font-bold uppercase">Fukuoka</p>
@@ -276,19 +272,19 @@ const App = () => {
                     <div className="chic-card p-6 border-l-8" style={{ borderLeftColor: plan.isStatic||plan.type==='fixed' ? '#FF91C1' : plan.type==='restaurant' ? '#FFB085' : '#85A5FF' }}>
                       <div className="flex justify-between items-start mb-2">
                         <span className="text-sm font-black text-slate-400">{plan.time}</span>
-                        <div className="flex gap-2">
-                          <button onClick={(e) => { e.stopPropagation(); setEditingPlan(plan); setEditPlanBuffer({time:plan.time, title:plan.title, type:plan.type}); setIsEditingPlan(true); }} className="text-slate-200 hover:text-purple-400"><PencilLine size={16}/></button>
-                          {!plan.isStatic && <button onClick={() => deletePlan(null, plan.id)} className="text-slate-200 hover:text-red-400"><Trash2 size={16}/></button>}
+                        <div className="flex gap-3">
+                          <button onClick={(e) => { e.stopPropagation(); setEditingPlan(plan); setEditPlanBuffer({time:plan.time, title:plan.title, type:plan.type}); setIsEditingPlan(true); }} className="text-slate-200 hover:text-purple-400 transition-all active:scale-75"><PencilLine size={16}/></button>
+                          {!plan.isStatic && <button onClick={() => deletePlan(plan.id)} className="text-slate-200 hover:text-red-400 transition-all active:scale-75"><Trash2 size={16}/></button>}
                         </div>
                       </div>
                       <h3 className="text-xl font-black text-slate-700 leading-tight mb-4">{plan.title}</h3>
-                      <button onClick={() => openMap(plan.title)} className="text-xs font-bold text-blue-400 flex items-center gap-1"><Navigation size={12}/> 查看地圖導航</button>
+                      <button onClick={() => openMap(plan.title)} className="text-xs font-bold text-blue-400 flex items-center gap-1"><Navigation size={12}/> 查看導航</button>
                     </div>
                   </div>
                 ))}
               </div>
               <button onClick={() => { setEditingPlan(null); setEditPlanBuffer({time:'', title:'', type: 'attraction'}); setIsEditingPlan(true); }} className="w-full bg-white border-2 border-dashed border-slate-200 text-slate-400 py-6 rounded-[30px] flex items-center justify-center gap-3 active:bg-slate-50 transition-all font-bold">
-                <Plus size={20} /> 新增行程點
+                <Plus size={20} /> 新增自定義行程
               </button>
             </div>
           )
@@ -302,7 +298,7 @@ const App = () => {
                 <div className="text-left"><p className="text-2xl font-black mb-1">開啟 Google Map</p><p className="text-[10px] font-bold opacity-40 uppercase tracking-widest italic">Open My Saved List 💜</p></div>
                 <div className="bg-[#9D76C1] p-4 rounded-full shadow-lg"><Navigation size={24} /></div>
             </button>
-            <div className="space-y-8">
+            <div className="space-y-8 pb-10">
               {mapSpotList.map((group, idx) => (
                 <div key={idx} className="space-y-4">
                   <h3 className="text-lg font-black text-slate-400 px-2 uppercase tracking-widest flex items-center gap-3"><div className="w-1.5 h-1.5 rounded-full bg-purple-400" />{group.category}</h3>
@@ -310,7 +306,7 @@ const App = () => {
                     {group.items.map((item, i) => (
                       <div key={i} onClick={() => openMap(item)} className="chic-card p-5 flex items-center justify-between active:scale-95 transition-all cursor-pointer">
                         <span className="text-lg font-bold text-slate-700">{item}</span>
-                        <ChevronRight className="text-slate-200" />
+                        <ChevronRight className="text-slate-200 w-5 h-5" />
                       </div>
                     ))}
                   </div>
@@ -334,33 +330,16 @@ const App = () => {
                 <p className="text-6xl font-black tracking-tighter">¥{totalExpenseJpy.toLocaleString()}</p>
                 <p className="text-xl font-bold text-pink-300 opacity-80">≈ NT$ {totalExpenseTwd.toLocaleString()}</p>
               </div>
-              <div className="mt-8 pt-8 border-t border-white/10 grid grid-cols-2 gap-4">
-                 {members.map(m => {
-                   const personTotal = expenses.filter(e => e.payer === m).reduce((s, e) => s + (e.amount || 0), 0);
-                   return (
-                     <div key={m} className="flex flex-col">
-                       <span className="text-[9px] font-bold text-slate-500 uppercase">{m} 支付</span>
-                       <span className="font-bold text-sm">¥{personTotal.toLocaleString()}</span>
-                     </div>
-                   );
-                 })}
-              </div>
             </div>
 
             <div className="bg-white rounded-[40px] p-8 shadow-xl space-y-6">
-              <h3 className="text-xl font-black text-slate-800">新增這筆花費 🍴</h3>
-              <div className="space-y-4">
-                <div className="flex gap-4">
-                  <input type="date" value={newExpense.date} onChange={(e) => setNewExpense({...newExpense, date: e.target.value})} className="flex-1 bg-slate-50 rounded-2xl p-4 font-bold text-sm outline-none" />
-                  <select value={newExpense.payer} onChange={(e) => setNewExpense({...newExpense, payer: e.target.value})} className="bg-purple-50 rounded-2xl px-6 font-bold text-sm text-purple-600 outline-none">
-                    {members.map(m => <option key={m} value={m}>{m}</option>)}
-                  </select>
-                </div>
-                <input placeholder="品項名稱" value={newExpense.item} onChange={(e) => setNewExpense({...newExpense, item: e.target.value})} className="w-full bg-slate-50 rounded-2xl p-4 font-bold outline-none" />
-                <input type="number" placeholder="金額 ¥" value={newExpense.amount} onChange={(e) => setNewExpense({...newExpense, amount: e.target.value})} className="w-full bg-slate-50 rounded-2xl p-6 text-3xl font-black outline-none" />
+              <h3 className="text-xl font-black text-slate-800">快速換算與記帳 🍴</h3>
+              <div className="space-y-4 relative z-10">
+                <div className="flex items-center gap-4 border-b border-slate-100 pb-3"><span className="text-3xl font-black opacity-40">¥</span><input type="number" value={fxJpy} onChange={(e) => { setFxJpy(e.target.value); setFxTwd(e.target.value ? Math.round(e.target.value * exchangeRate) : ''); }} placeholder="0" className="flex-1 bg-transparent text-6xl font-black focus:outline-none placeholder:text-slate-100" /></div>
+                <div className="flex items-center gap-4 pt-2"><span className="text-3xl font-black text-pink-300">$</span><input type="number" value={fxTwd} onChange={(e) => { setFxTwd(e.target.value); setFxJpy(e.target.value ? Math.round(e.target.value / exchangeRate) : ''); }} placeholder="0" className="flex-1 bg-transparent text-6xl font-black text-pink-200 focus:outline-none placeholder:text-pink-100" /></div>
               </div>
-              <button onClick={addExpense} disabled={isSaving} className="w-full kuromi-gradient text-white py-6 rounded-[30px] font-black text-xl shadow-lg flex items-center justify-center gap-3">
-                {isSaving ? <RefreshCw className="animate-spin" size={20}/> : "同步到雲端明細 💜"}
+              <button onClick={addExpense} disabled={isSaving || !fxJpy} className="w-full kuromi-gradient text-white py-6 rounded-[30px] font-black text-xl shadow-lg flex items-center justify-center gap-3 disabled:opacity-50">
+                {isSaving ? <RefreshCw className="animate-spin" size={20}/> : "同步至記帳明細 💜"}
               </button>
             </div>
 
@@ -373,7 +352,7 @@ const App = () => {
                   </div>
                   <div className="text-right flex items-center gap-4">
                     <div><p className="text-2xl font-black text-slate-800">¥{ex.amount?.toLocaleString()}</p><p className="text-xs font-bold text-pink-400">NT${ex.amountTwd?.toLocaleString()}</p></div>
-                    <button onClick={() => deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'expenses', ex.id))} className="text-slate-200 hover:text-red-400"><Trash2 size={16}/></button>
+                    <button onClick={() => deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'expenses', ex.id))} className="text-slate-200 hover:text-red-400 active:scale-75 transition-all"><Trash2 size={16}/></button>
                   </div>
                 </div>
               ))}
@@ -386,12 +365,12 @@ const App = () => {
           <div className="space-y-10 animate-in fade-in pb-20">
             {/* 優惠卷專區 */}
             <section className="bg-white rounded-[40px] p-8 shadow-xl border-t-8 border-orange-400">
-              <div className="flex items-center gap-4 mb-6"><div className="p-3 bg-orange-100 rounded-2xl text-orange-500"><Ticket size={24}/></div><h3 className="text-xl font-black text-slate-800 tracking-tight">購物優惠卷 📂</h3></div>
-              <div className="grid grid-cols-1 gap-3">
+              <div className="flex items-center gap-4 mb-6"><div className="p-3 bg-orange-100 rounded-2xl text-orange-500"><Ticket size={24}/></div><h3 className="text-xl font-black text-slate-800 tracking-tight">優惠卷雲端 📂</h3></div>
+              <div className="grid grid-cols-1 gap-4">
                 {couponList.map((c, i) => (
-                  <div key={i} onClick={() => window.open(c.link, '_blank')} className="chic-card p-5 flex justify-between items-center bg-orange-50/20 active:bg-orange-50 cursor-pointer border-none shadow-sm">
-                    <span className="font-bold text-slate-700">{c.category}</span>
-                    <Folder className="text-orange-300" size={20} />
+                  <div key={i} onClick={() => window.open(c.link, '_blank')} className="chic-card p-6 flex items-center justify-between active:bg-orange-50 cursor-pointer border-none shadow-sm transition-all group">
+                    <div className="flex items-center gap-4"><Folder className="text-orange-200 group-hover:text-orange-400 transition-colors" size={24} /><span className="font-black text-lg text-slate-600">{c.category}</span></div>
+                    <ChevronRight className="text-slate-200 w-6 h-6" />
                   </div>
                 ))}
               </div>
@@ -399,48 +378,36 @@ const App = () => {
 
             {/* 快速資源連結 */}
             <div className="grid grid-cols-2 gap-4">
+              <button onClick={() => window.open('https://vjw-lp.digital.go.jp/','_blank')} className="chic-card p-8 flex flex-col items-center justify-center gap-3 active:scale-95 transition-all text-center">
+                <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center text-blue-500"><CheckCircle2 size={24}/></div>
+                <span className="font-black text-sm text-slate-500">Visit Japan</span>
+              </button>
               <button onClick={() => window.open('https://photos.google.com','_blank')} className="chic-card p-8 flex flex-col items-center justify-center gap-3 active:scale-95 transition-all text-center">
                 <div className="w-12 h-12 bg-pink-100 rounded-full flex items-center justify-center text-pink-500"><ImageIcon size={24}/></div>
-                <span className="font-black text-sm">家族相簿</span>
-              </button>
-              <button onClick={() => window.open('https://vjw-lp.digital.go.jp/zh-hant/','_blank')} className="chic-card p-8 flex flex-col items-center justify-center gap-3 active:scale-95 transition-all text-center">
-                <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center text-blue-500"><CheckCircle2 size={24}/></div>
-                <span className="font-black text-sm">Visit Japan</span>
+                <span className="font-black text-sm text-slate-500">家族相簿</span>
               </button>
             </div>
 
             {/* 飯店卡片 */}
             <div className="chic-card p-8 border-4 border-purple-200 text-center relative overflow-hidden">
-              <div className="absolute right-[-10px] top-[-10px] opacity-10"><Hotel size={100}/></div>
-              <h3 className="text-2xl font-black text-slate-800 mb-1">博多西鐵 CROOM</h3>
-              <p className="text-[10px] text-slate-400 font-bold mb-8 uppercase tracking-widest">櫛田神社前站 4 號出口</p>
-              <div className="flex gap-4 relative z-10">
-                <button onClick={() => openMap('博多祇園櫛田神社前西鐵克魯姆酒店')} className="flex-1 kuromi-gradient text-white py-5 rounded-2xl font-black text-sm shadow-md">地圖導航</button>
-                <a href="tel:092-235-0311" className="flex-1 border-4 border-slate-900 py-5 rounded-2xl font-black text-sm text-slate-900 flex items-center justify-center">撥打電話</a>
+              <Icon name="hotel" size={40} className="text-purple-200 mx-auto mb-2" />
+              <h3 className="text-2xl font-black text-slate-800 mb-1">博多西鐵 CROOM 🏨</h3>
+              <p className="text-[10px] text-slate-400 font-bold mb-8 uppercase tracking-[0.2em]">博多祇園櫛田神社前</p>
+              <div className="flex gap-4">
+                <button onClick={() => openMap('博多祇園櫛田神社前西鐵克魯姆酒店')} className="flex-1 kuromi-gradient text-white py-5 rounded-2xl font-black text-sm shadow-md active:scale-95 transition-all">地圖導航</button>
+                <a href="tel:092-235-0311" className="flex-1 border-4 border-slate-900 py-5 rounded-2xl font-black text-sm text-slate-900 flex items-center justify-center active:scale-95 transition-all">撥打電話</a>
               </div>
             </div>
 
             {/* 行李清單 */}
-            <section className="space-y-4">
-              <h3 className="text-xl font-black text-slate-800 flex items-center gap-3 px-2"><Luggage className="text-purple-400" /> 行李檢查表 💜</h3>
-              {packingListTemplate.map((cat, idx) => (
-                <div key={idx} className="mb-4">
-                  <div onClick={() => toggleCategory(cat.category)} className="chic-card p-5 flex justify-between items-center cursor-pointer active:bg-purple-50 border-none shadow-sm">
-                    <span className="font-black text-sm text-slate-600">{cat.category}</span>
-                    <ChevronRight size={18} className={`text-slate-300 transition-all ${expandedCats[cat.category] ? 'rotate-90' : ''}`} />
+            <section className="space-y-4 pb-10">
+              <h3 className="text-xl font-black text-slate-800 flex items-center gap-3 px-2 italic"><Luggage className="text-purple-400 w-6 h-6" /> 行李檢查表 💜</h3>
+              {['護照/身分證/QR碼', '日幣/信用卡/保險單', '換洗衣物/好走的鞋', '相機/行動電源/充電線', 'Ruby 藥品/尿布/奶粉'].map(item => (
+                <div key={item} onClick={() => setPackingItems(prev => ({...prev, [item]: !prev[item]}))} className={`chic-card p-5 flex items-center gap-4 transition-all active:scale-95 cursor-pointer ${packingItems[item] ? 'opacity-40' : ''}`}>
+                  <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center ${packingItems[item] ? 'bg-purple-400 border-transparent' : 'border-purple-100'}`}>
+                    {packingItems[item] && <CheckCircle2 className="text-white w-4 h-4" />}
                   </div>
-                  {expandedCats[cat.category] && (
-                    <div className="space-y-3 px-2 mt-4 animate-in fade-in">
-                      {cat.items.map(item => (
-                        <div key={item} onClick={() => setPackingItems(prev => ({...prev, [item]:!prev[item]}))} className={`chic-card p-4 flex items-center gap-4 border-none shadow-sm ${packingItems[item] ? 'opacity-40 grayscale' : ''}`}>
-                          <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center ${packingItems[item] ? 'bg-purple-400 border-transparent' : 'border-slate-200'}`}>
-                            {packingItems[item] && <CheckCircle2 className="text-white w-4 h-4" />}
-                          </div>
-                          <span className={`text-sm font-bold text-slate-700 ${packingItems[item] ? 'line-through' : ''}`}>{item}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                  <span className={`font-bold text-slate-600 ${packingItems[item] ? 'line-through' : ''}`}>{item}</span>
                 </div>
               ))}
             </section>
@@ -452,14 +419,14 @@ const App = () => {
       {isWeatherModalOpen && (
         <div className="fixed inset-0 z-[120] modal-mask flex items-center justify-center p-8">
           <div className="bg-white w-full rounded-[50px] p-8 shadow-2xl space-y-6 animate-in slide-in-from-bottom duration-300 max-h-[80vh] overflow-y-auto hide-scrollbar">
-            <div className="flex justify-between items-center mb-4"><h3 className="text-3xl font-black text-slate-800 italic underline decoration-purple-300 decoration-4">福岡預報 🌦️</h3><button onClick={() => setIsWeatherModalOpen(false)} className="p-3 text-slate-300 active:scale-75"><RefreshCw size={24} /></button></div>
+            <div className="flex justify-between items-center mb-4"><h3 className="text-3xl font-black text-slate-800 italic underline decoration-purple-300 decoration-4">福岡預報 🌦️</h3><button onClick={() => setIsWeatherModalOpen(false)} className="p-3 text-slate-300 active:scale-75 transition-all"><RefreshCw size={24} /></button></div>
             <div className="space-y-4">{forecast.map((f, i) => (
               <div key={i} className="flex items-center justify-between p-5 bg-slate-50 rounded-3xl">
                 <div className="flex items-center gap-4"><span className="text-lg font-black text-slate-400 w-12">{f.date}</span><CloudSun size={28} className="text-purple-400" /></div>
                 <div className="flex items-center gap-3"><span className="text-xl font-black text-slate-700">{f.max}°</span><div className="w-px h-6 bg-slate-200" /><span className="text-xl font-black text-slate-300">{f.min}°</span></div>
               </div>
             ))}</div>
-            <button onClick={() => setIsWeatherModalOpen(false)} className="w-full kuromi-gradient text-white py-6 rounded-[30px] font-black text-xl shadow-lg mt-4">關閉預報 💜</button>
+            <button onClick={() => setIsWeatherModalOpen(false)} className="w-full kuromi-gradient text-white py-6 rounded-[30px] font-black text-xl shadow-lg mt-4 active:scale-95 transition-all">關閉預報 💜</button>
           </div>
         </div>
       )}
@@ -468,28 +435,31 @@ const App = () => {
       {isEditingPlan && (
         <div className="fixed inset-0 z-[110] modal-mask flex items-center justify-center p-8">
           <div className="bg-white w-full rounded-[50px] p-10 shadow-2xl space-y-8 animate-in zoom-in">
-            <h3 className="text-3xl font-black text-slate-800 text-center kuromi-font">{editingPlan ? '修改行程' : '新增計畫'}</h3>
-            <div className="space-y-6">
-              <div className="flex gap-2">
-                {['attraction', 'restaurant'].map(type => (
-                  <button key={type} onClick={() => setEditPlanBuffer({...editPlanBuffer, type})} 
-                          className={`flex-1 py-4 rounded-2xl font-black text-sm border-2 transition-all ${editPlanBuffer.type === type ? 'border-purple-400 bg-purple-50 text-purple-600 shadow-inner' : 'border-slate-50 bg-slate-50 text-slate-400'}`}>
-                    {type === 'attraction' ? '景點 ⛩️' : '美味 🍴'}
-                  </button>
-                ))}
+            <h3 className="text-3xl font-black text-slate-800 text-center kuromi-font">{editingPlan ? '修改計畫 ✏️' : '新增計畫 ✏️'}</h3>
+            <div className="space-y-6 text-left">
+              <div>
+                <label className="text-[10px] font-black text-slate-400 ml-4 uppercase tracking-widest mb-2 block">分類</label>
+                <div className="flex gap-2 px-2">
+                  {['attraction', 'restaurant'].map(type => (
+                    <button key={type} onClick={() => setEditPlanBuffer({...editPlanBuffer, type})} 
+                            className={`flex-1 py-4 rounded-2xl font-black text-sm border-2 transition-all ${editPlanBuffer.type === type ? 'border-purple-400 bg-purple-50 text-purple-600 shadow-inner' : 'border-slate-50 bg-slate-50 text-slate-400'}`}>
+                      {type === 'attraction' ? '景點 ⛩️' : '美味 🍴'}
+                    </button>
+                  ))}
+                </div>
               </div>
               <div className="space-y-4">
-                <label className="text-[10px] font-black text-slate-400 ml-4 uppercase tracking-widest">時間 (如 14:30)</label>
-                <input value={editPlanBuffer.time} onChange={(e) => setEditPlanBuffer({...editPlanBuffer, time: e.target.value})} className="w-full bg-slate-50 rounded-2xl p-5 text-2xl font-black outline-none border-2 border-transparent focus:border-purple-200" />
-                <label className="text-[10px] font-black text-slate-400 ml-4 uppercase tracking-widest">行程內容</label>
-                <input value={editPlanBuffer.title} onChange={(e) => setEditPlanBuffer({...editPlanBuffer, title: e.target.value})} className="w-full bg-slate-50 rounded-2xl p-5 text-xl font-black outline-none border-2 border-transparent focus:border-purple-200" />
+                <label className="text-[10px] font-black text-slate-400 ml-4 uppercase tracking-widest block">時間 (如 14:30)</label>
+                <input value={editPlanBuffer.time} onChange={(e) => setEditPlanBuffer({...editPlanBuffer, time: e.target.value})} className="w-full bg-slate-50 rounded-2xl p-5 text-2xl font-black outline-none border-2 border-transparent focus:border-purple-200 transition-all" />
+                <label className="text-[10px] font-black text-slate-400 ml-4 uppercase tracking-widest block">計畫內容</label>
+                <input value={editPlanBuffer.title} onChange={(e) => setEditPlanBuffer({...editPlanBuffer, title: e.target.value})} className="w-full bg-slate-50 rounded-2xl p-5 text-xl font-black outline-none border-2 border-transparent focus:border-purple-200 transition-all" />
               </div>
             </div>
-            <div className="flex gap-4">
-              <button onClick={savePlan} disabled={isSaving} className="flex-1 kuromi-gradient text-white py-6 rounded-[30px] font-black text-xl shadow-lg flex items-center justify-center gap-3">
-                {isSaving && <RefreshCw className="animate-spin" size={20}/>} 儲存計畫 💜
+            <div className="flex gap-4 px-2 pb-2">
+              <button onClick={savePlan} disabled={isSaving} className="flex-1 kuromi-gradient text-white py-6 rounded-[30px] font-black text-xl shadow-lg active:scale-95 transition-all">
+                {isSaving ? "同步中..." : "儲存計畫 💜"}
               </button>
-              <button onClick={() => setIsEditingPlan(false)} className="px-10 bg-slate-100 text-slate-400 rounded-[30px] font-bold">取消</button>
+              <button onClick={() => setIsEditingPlan(false)} className="px-10 bg-slate-100 text-slate-400 rounded-[30px] font-bold active:scale-95 transition-all">取消</button>
             </div>
           </div>
         </div>
